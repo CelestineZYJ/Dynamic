@@ -63,7 +63,7 @@ def read_day(day_dir):
             # sec is one line in sec_f (there are about 1440 lines (secs) in each sec_f)
             for sec in parse_gz(day_dir+'/'+sec_f):
                 all_tweets_num+=1
-                if sec['entities']['hashtags'] and not(sec['retweeted']):
+                if sec['entities']['hashtags'] and not(sec['retweeted']) and pre_filter_tweets(sec):
                     exist_tag_each_tweet = filter_out_hashtag(sec)
                     
                     if exist_tag_each_tweet:
@@ -92,7 +92,7 @@ def filter_user_with_enough_tweets(user_tweet_dict, filtered_user_tweet_dict):
     num_filtered_users_tweets = 0
     
     for user_id in user_tweet_dict.keys():
-        if user_tweet_dict[user_id]['user_tweet_num']>=8 and user_tweet_dict[user_id]['user_tweet_num']<=50: # 1, 2: 5-na, 3, 4: 6-100, 5: 60, 6:8-50
+        if user_tweet_dict[user_id]['user_tweet_num']>=5 and user_tweet_dict[user_id]['user_tweet_num']<=50: # 1, 2: 5-na, 3, 4: 6-100, 5: 60, 6:8-50
             filtered_user_tweet_dict[user_id]=user_tweet_dict[user_id]
             num_filtered_users_tweets+=filtered_user_tweet_dict[user_id]['user_tweet_num']
             # num_filtered_user_tweet_dict[user_id]=user_tweet_dict[user_id]['user_tweet_num']
@@ -109,37 +109,39 @@ def filter_user_with_proper_hashtags(filtered_user_tweet_dict):
     new_hashtag_list=[]
     for user_id in tqdm(filtered_user_tweet_dict.keys(), desc='constructing the hashtag_num_dict '):
         for each_tweet in filtered_user_tweet_dict[user_id]['tweet_entities']:
-            hashtags = each_tweet['entities']['hashtags']
-            for hashtag in hashtags:
-                hashtag['text'] = hashtag['text'].lower()
-                try:
-                    hashtag_num_dict[hashtag['text']]+=1
-                    new_hashtag_user_dict[hashtag['text']].append(user_id)
-                    new_hashtag_user_dict[hashtag['text']]=list(set(new_hashtag_user_dict[hashtag['text']]))
-                except:
-                    hashtag_num_dict[hashtag['text']]=1
-                    new_hashtag_user_dict[hashtag['text']] = [user_id]
+            if pre_filter_tweets(each_tweet):
+                hashtags = each_tweet['entities']['hashtags']
+                for hashtag in hashtags:
+                    hashtag['text'] = hashtag['text'].lower()
+                    try:
+                        hashtag_num_dict[hashtag['text']]+=1
+                        new_hashtag_user_dict[hashtag['text']].append(user_id)
+                        new_hashtag_user_dict[hashtag['text']]=list(set(new_hashtag_user_dict[hashtag['text']]))
+                    except:
+                        hashtag_num_dict[hashtag['text']]=1
+                        new_hashtag_user_dict[hashtag['text']] = [user_id]
     print('the total number of the original hashtags is: '+str(len(hashtag_num_dict)))
 
     filter_user_hashtag_tweet_dict={}
     for user_id in tqdm(filtered_user_tweet_dict.keys(), desc='delete tweets with low-source hashtags for all users'):
         new_history_tweets = []
         for each_tweet in filtered_user_tweet_dict[user_id]['tweet_entities']:
-            hashtags = copy.deepcopy(each_tweet['entities']['hashtags']) # only copy the value without the handle
-            new_proper_hashtags = []
-            for hashtag in hashtags:
-                hashtag['text'] = hashtag['text'].lower()
-                if hashtag_num_dict[hashtag['text']]>=20 and len(hashtag['text'])>=5 and hashtag_num_dict[hashtag['text']]<=500 and len(new_hashtag_user_dict[hashtag['text']])>=5 and len(new_hashtag_user_dict[hashtag['text']]) <= 500:
-                    new_hashtag_list.append(hashtag['text'])
-                    new_proper_hashtags.append(hashtag)
-                    each_tweet['entities']['hashtags']=new_proper_hashtags
-                    if each_tweet not in new_history_tweets:
-                        new_history_tweets.append(each_tweet)
+            if pre_filter_tweets(each_tweet):
+                hashtags = copy.deepcopy(each_tweet['entities']['hashtags']) # only copy the value without the handle
+                new_proper_hashtags = []
+                for hashtag in hashtags:
+                    hashtag['text'] = hashtag['text'].lower()
+                    if hashtag_num_dict[hashtag['text']]>=10 and len(hashtag['text'])>=5 and hashtag_num_dict[hashtag['text']]<=500 and len(new_hashtag_user_dict[hashtag['text']])>=3 and len(new_hashtag_user_dict[hashtag['text']]) <= 500:
+                        new_hashtag_list.append(hashtag['text'])
+                        new_proper_hashtags.append(hashtag)
+                        each_tweet['entities']['hashtags']=new_proper_hashtags
+                        if each_tweet not in new_history_tweets:
+                            new_history_tweets.append(each_tweet)
                     
-        if len(new_history_tweets) >= 10 and len(new_history_tweets) <= 60:
+        if len(new_history_tweets) >= 5 and len(new_history_tweets) <= 50:
             filter_user_hashtag_tweet_dict[user_id]=new_history_tweets
                  
-    print('the total number of filtered users with proper hashtags and 10 more history tweets in one month is: '+str(len(filter_user_hashtag_tweet_dict)))
+    print('the total number of filtered users with proper hashtags and 5 more history tweets in one month is: '+str(len(filter_user_hashtag_tweet_dict)))
     print('the total number of the filtered hashtags is: '+str(len(list(set(new_hashtag_list)))))
     return filter_user_hashtag_tweet_dict
 
@@ -149,7 +151,9 @@ def slim_tweet_form(each_day_user_tweet_dict):
     for user_id in each_day_user_tweet_dict:
         slim_each_day_user_tweet_dict[user_id]={'tweet_entities':[]}
         for each_tweet in each_day_user_tweet_dict[user_id]['tweet_entities']:
-            each_slim_tweet = {key:val for key, val in each_tweet.items() if (key=='created_at' or key=='id_str' or key=='text' or key=='source' or key=='entities')}
+            each_slim_tweet = {key:val for key, val in each_tweet.items() if (key=='created_at' or key=='id_str' or key=='text' or key=='source' or key=='entities' or key=='timestamp')}
+            print('*'*100)
+            print(each_slim_tweet.keys())
             slim_each_day_user_tweet_dict[user_id]['tweet_entities'].append(each_slim_tweet)
     
     return slim_each_day_user_tweet_dict
@@ -170,9 +174,39 @@ def read_json_file_to_dict(mon):
     return filtered_user_tweet_dict
 
 
-def uniform_timestamp(ori_time):
-    uni_time = ori_time
-    return uni_time
+def pre_filter_tweets(each_tweet):
+    tweet_str = each_tweet['text']
+    hashtag_list = []
+    if tweet_str[:2] != 'RT':
+        # print('*'*100)
+        # print(tweet_str)
+        new_str = re.sub(r'\w+:\/{2}[\d\w-]+(\.[\d\w-]+)*(?:(?:\/[^\s/]*))*', '', tweet_str).lower()
+        extracted_hashtags = re.findall(r'\#\w+', new_str)
+        for ext_tag in extracted_hashtags:
+            hashtag_list.append(ext_tag.replace('#', ''))
+        hashtag_list = list(set(hashtag_list))
+        for tag in hashtag_list:
+            new_str = re.sub('#'+tag, '', new_str)
+        new_str = re.sub('\t', ' ', new_str)
+        new_str = re.sub('\n', ' ', new_str)
+        for i in string.punctuation:
+            if i != '@':
+                new_str = new_str.replace(i, '')
+        for i in new_str:
+            if not i.isalnum() and i != ' ' and i != '@':
+                new_str = new_str.replace(i, '')
+        new_str = new_str.replace('  ', ' ')
+        if len(new_str.split(' '))-new_str.count('@')>=5:
+            return True
+            # print('*'*100)
+            # print(tweet_str)
+            # print('&'*100)
+            # print(new_str)
+            # print(hashtag_list)
+        else:
+            return False
+    else:
+        return False
 
 
 def filter_meaningful_tweet(tweet_str, hashtag_list):
@@ -207,10 +241,12 @@ def filter_meaningful_tweet(tweet_str, hashtag_list):
             filtered_tweet = False
     return filtered_tweet, hashtag_list
 
+
 def train_valid_test_partition():
     all_tweets_first = []
     # mon 1, 2, 3, 4, 5, 6
     all_count=0
+    # go through and filter all the tweets, give them timestamps for later sequencing
     for mon in range(1, 7):
         filter_user_hashtag_tweet_dict = read_json_file_to_dict('second_filter_user_proper_tag_enough_tweets_mon'+str(mon))
         for user in tqdm(filter_user_hashtag_tweet_dict.keys()):
@@ -223,21 +259,22 @@ def train_valid_test_partition():
                 if filtered_tweet:
                     user_id = user
                     tweet_id = each_tweet['id_str']
-                    timestamp = uniform_timestamp(each_tweet['created_at'])
+                    timestamp = each_tweet['timestamp']
                     for tag in hashtag_list:
-                        all_tweets_first.append(timestamp+'\t'+tweet_id+'\t'+user_id+'\t'+filtered_tweet+'\t'+tag)
+                        all_tweets_first.append(timestamp+'\t'+tweet_id+'\t'+user_id+'\t'+filtered_tweet+'\t'+tag+'\n')
                 else:
                     continue
-    print(len(all_tweets_first))
-    print(str(all_count))
+    print('filtered tweets count: '+str(len(all_tweets_first)))
+    print('previous all count of tweets: '+str(all_count))
             
-
+    # sequencing all tweets by timestamps and split the train, validation, and test set, keep the sharing user list
+    
 
 
 def read_all(data_dir):
     
-    regenerate_filtered_user_with_5_more_tweets_per_month_with_hashtags = False
-    second_filter_user_with_proper_hashtag_enough_tweets = False
+    regenerate_filtered_user_with_5_more_tweets_per_month_with_hashtags = True
+    second_filter_user_with_proper_hashtag_enough_tweets = True
     
     
     if regenerate_filtered_user_with_5_more_tweets_per_month_with_hashtags:
@@ -247,7 +284,7 @@ def read_all(data_dir):
         
         
         # month 1, 2, 3, 4, 5, 6
-        for mon in range(1, 7):
+        for mon in range(2, 7):
             print('-'*50+' processing month of '+str(mon))
             start_day = day_dir.index('20220'+str(mon)+'01')
             end_day = day_dir.index('20220'+str(mon+1)+'01')
