@@ -268,13 +268,59 @@ def train_valid_test_partition():
     print('previous all count of tweets: '+str(all_count))
             
     # sequencing all tweets by timestamps and split the train, validation, and test set, keep the sharing user list
+    all_tweets_first = all_tweets_first.sort()
+    filtered_tweets_num = len(all_tweets_first)
+    past_train_tweets = all_tweets_first[0:int(0.5*filtered_tweets_num)]
+    future_train_tweets = all_tweets_first[int(0.5*filtered_tweets_num):int(0.8*filtered_tweets_num)]
+    future_test_tweets = all_tweets_first[int(0.8*filtered_tweets_num):]
     
-
+    # firstly, keep a sharing user list, keep corresponding tweets
+    past_train_user_list = []
+    for tweet in past_train_tweets:
+        user_id = tweet.strip('\n').split('\t')[2]
+        past_train_user_list.append(user_id)
+    past_train_user_list = list(set(past_train_user_list))
+    
+    future_train_user_list = []
+    for tweet in future_train_tweets:
+        user_id = tweet.strip('\n').split('\t')[2]
+        future_train_user_list.append(user_id)
+    future_train_user_list = list(set(future_train_user_list))
+    
+    future_test_user_list = []
+    for tweet in future_test_tweets:
+        user_id = tweet.strip('\n').split('\t')[2]
+        future_test_user_list.append(user_id)
+    future_test_user_list = list(set(future_test_user_list))
+    
+    sharing_user_list = list(set(past_train_user_list + future_train_user_list + future_test_user_list))
+    
+    new_past_train_tweets = []
+    for tweet in past_train_tweets:
+        user_id = tweet.strip('\n').split('\t')[2]
+        if user_id in sharing_user_list:
+            new_past_train_tweets.append(tweet)
+            
+    new_future_train_tweets = []
+    for tweet in future_train_tweets:
+        user_id = tweet.strip('\n').split('\t')[2]
+        if user_id in sharing_user_list:
+            new_future_train_tweets.append(tweet)
+            
+    new_future_test_tweets = []
+    for tweet in future_test_tweets:
+        user_id = tweet.strip('\n').split('\t')[2]
+        if user_id in sharing_user_list:
+            new_future_test_tweets.append(tweet)
+    
+    # secondly, create the user_hashtag_interact_dict and the hashtag_user_interact_dict, keep tweets with hashtags used >= 3 users , then give tweet_id, user_id, hashtag_id
+    
+    
 
 def read_all(data_dir):
     
     regenerate_filtered_user_with_5_more_tweets_per_month_with_hashtags = True
-    second_filter_user_with_proper_hashtag_enough_tweets = True
+    second_filter_user_with_proper_hashtag_enough_tweets = False
     
     
     if regenerate_filtered_user_with_5_more_tweets_per_month_with_hashtags:
@@ -284,7 +330,7 @@ def read_all(data_dir):
         
         
         # month 1, 2, 3, 4, 5, 6
-        for mon in range(2, 7):
+        for mon in range(3, 7):
             print('-'*50+' processing month of '+str(mon))
             start_day = day_dir.index('20220'+str(mon)+'01')
             end_day = day_dir.index('20220'+str(mon+1)+'01')
