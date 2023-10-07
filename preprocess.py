@@ -3,6 +3,8 @@ import json
 import gzip
 from tqdm import tqdm
 import copy
+import re
+import string 
 
 
 def parse_gz(gz_path):
@@ -173,17 +175,61 @@ def uniform_timestamp(ori_time):
     return uni_time
 
 
+def filter_meaningful_tweet(tweet_str, hashtag_list):
+    filtered_tweet = ''
+    if tweet_str[:2] != 'RT':
+        # print('*'*100)
+        # print(tweet_str)
+        new_str = re.sub(r'\w+:\/{2}[\d\w-]+(\.[\d\w-]+)*(?:(?:\/[^\s/]*))*', '', tweet_str).lower()
+        extracted_hashtags = re.findall(r'\#\w+', new_str)
+        for ext_tag in extracted_hashtags:
+            hashtag_list.append(ext_tag.replace('#', ''))
+        hashtag_list = list(set(hashtag_list))
+        for tag in hashtag_list:
+            new_str = re.sub('#'+tag, '', new_str)
+        new_str = re.sub('\t', ' ', new_str)
+        new_str = re.sub('\n', ' ', new_str)
+        for i in string.punctuation:
+            if i != '@':
+                new_str = new_str.replace(i, '')
+        for i in new_str:
+            if not i.isalnum() and i != ' ' and i != '@':
+                new_str = new_str.replace(i, '')
+        new_str = new_str.replace('  ', ' ')
+        if len(new_str.split(' '))-new_str.count('@')>=10:
+            filtered_tweet = new_str.replace('@', '')
+            # print('*'*100)
+            # print(tweet_str)
+            # print('&'*100)
+            # print(new_str)
+            # print(hashtag_list)
+        else:
+            filtered_tweet = False
+    return filtered_tweet, hashtag_list
+
 def train_valid_test_partition():
     all_tweets_first = []
     # mon 1, 2, 3, 4, 5, 6
+    all_count=0
     for mon in range(1, 7):
         filter_user_hashtag_tweet_dict = read_json_file_to_dict('second_filter_user_proper_tag_enough_tweets_mon'+str(mon))
         for user in tqdm(filter_user_hashtag_tweet_dict.keys()):
             for each_tweet in filter_user_hashtag_tweet_dict[user]:
-                tweet_id = each_tweet['id_str']
+                all_count+=1
+                tweet_str = each_tweet['text']
                 hashtag_list = each_tweet['entities']['hashtags']
-                user_id = user
-                timestamp = uniform_timestamp(each_tweet['created_at'])
+                hashtag_list = [hashtag['text'] for hashtag in hashtag_list]
+                filtered_tweet, hashtag_list = filter_meaningful_tweet(tweet_str, hashtag_list)
+                if filtered_tweet:
+                    user_id = user
+                    tweet_id = each_tweet['id_str']
+                    timestamp = uniform_timestamp(each_tweet['created_at'])
+                    for tag in hashtag_list:
+                        all_tweets_first.append(timestamp+'\t'+tweet_id+'\t'+user_id+'\t'+filtered_tweet+'\t'+tag)
+                else:
+                    continue
+    print(len(all_tweets_first))
+    print(str(all_count))
             
 
 
