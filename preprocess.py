@@ -5,6 +5,7 @@ from tqdm import tqdm
 import copy
 import re
 import string 
+import random
 
 
 def parse_gz(gz_path):
@@ -92,9 +93,11 @@ def filter_user_with_enough_tweets(user_tweet_dict, filtered_user_tweet_dict):
     num_filtered_users_tweets = 0
     
     for user_id in user_tweet_dict.keys():
-        if user_tweet_dict[user_id]['user_tweet_num']>=5 and user_tweet_dict[user_id]['user_tweet_num']<=50: # 1, 2: 5-na, 3, 4: 6-100, 5: 60, 6:8-50
-            filtered_user_tweet_dict[user_id]=user_tweet_dict[user_id]
-            num_filtered_users_tweets+=filtered_user_tweet_dict[user_id]['user_tweet_num']
+        if user_tweet_dict[user_id]['user_tweet_num']>=5 and user_tweet_dict[user_id]['user_tweet_num']<=30: # 1, 2: 5-na, 3, 4: 6-100, 5: 60, 6:8-50
+            # random sample
+            if random.randint(1,10)<=2:
+                filtered_user_tweet_dict[user_id]=user_tweet_dict[user_id]
+                num_filtered_users_tweets+=filtered_user_tweet_dict[user_id]['user_tweet_num']
             # num_filtered_user_tweet_dict[user_id]=user_tweet_dict[user_id]['user_tweet_num']
 
     # print(num_filtered_user_tweet_dict) 
@@ -139,6 +142,8 @@ def filter_user_with_proper_hashtags(filtered_user_tweet_dict):
                             new_history_tweets.append(each_tweet)
                     
         if len(new_history_tweets) >= 5 and len(new_history_tweets) <= 50:
+            if len(new_history_tweets)>30:
+                new_history_tweets = random.sample(new_history_tweets, 30)
             filter_user_hashtag_tweet_dict[user_id]=new_history_tweets
                  
     print('the total number of filtered users with proper hashtags and 5 more history tweets in one month is: '+str(len(filter_user_hashtag_tweet_dict)))
@@ -152,8 +157,8 @@ def slim_tweet_form(each_day_user_tweet_dict):
         slim_each_day_user_tweet_dict[user_id]={'tweet_entities':[]}
         for each_tweet in each_day_user_tweet_dict[user_id]['tweet_entities']:
             each_slim_tweet = {key:val for key, val in each_tweet.items() if (key=='created_at' or key=='id_str' or key=='text' or key=='source' or key=='entities' or key=='timestamp')}
-            print('*'*100)
-            print(each_slim_tweet.keys())
+            # print('*'*100)
+            # print(each_slim_tweet.keys())
             slim_each_day_user_tweet_dict[user_id]['tweet_entities'].append(each_slim_tweet)
     
     return slim_each_day_user_tweet_dict
@@ -245,7 +250,8 @@ def filter_meaningful_tweet(tweet_str, hashtag_list):
 def train_valid_test_partition():
     all_tweets_first = []
     # mon 1, 2, 3, 4, 5, 6
-    all_count=0
+    all_count = 0
+    real_count = 0
     # go through and filter all the tweets, give them timestamps for later sequencing
     for mon in range(1, 7):
         filter_user_hashtag_tweet_dict = read_json_file_to_dict('second_filter_user_proper_tag_enough_tweets_mon'+str(mon))
@@ -260,15 +266,17 @@ def train_valid_test_partition():
                     user_id = user
                     tweet_id = each_tweet['id_str']
                     timestamp = each_tweet['timestamp']
+                    real_count += 1
                     for tag in hashtag_list:
                         all_tweets_first.append(timestamp+'\t'+tweet_id+'\t'+user_id+'\t'+filtered_tweet+'\t'+tag+'\n')
                 else:
                     continue
     print('filtered tweets count: '+str(len(all_tweets_first)))
+    print('filtered tweets count without duplication: '+str(real_count))
     print('previous all count of tweets: '+str(all_count))
             
     # sequencing all tweets by timestamps and split the train, validation, and test set, keep the sharing user list
-    all_tweets_first = all_tweets_first.sort()
+    all_tweets_first.sort()
     filtered_tweets_num = len(all_tweets_first)
     past_train_tweets = all_tweets_first[0:int(0.5*filtered_tweets_num)]
     future_train_tweets = all_tweets_first[int(0.5*filtered_tweets_num):int(0.8*filtered_tweets_num)]
@@ -276,19 +284,19 @@ def train_valid_test_partition():
     
     # firstly, keep a sharing user list, keep corresponding tweets
     past_train_user_list = []
-    for tweet in past_train_tweets:
+    for tweet in tqdm(past_train_tweets):
         user_id = tweet.strip('\n').split('\t')[2]
         past_train_user_list.append(user_id)
     past_train_user_list = list(set(past_train_user_list))
     
     future_train_user_list = []
-    for tweet in future_train_tweets:
+    for tweet in tqdm(future_train_tweets):
         user_id = tweet.strip('\n').split('\t')[2]
         future_train_user_list.append(user_id)
     future_train_user_list = list(set(future_train_user_list))
     
     future_test_user_list = []
-    for tweet in future_test_tweets:
+    for tweet in tqdm(future_test_tweets):
         user_id = tweet.strip('\n').split('\t')[2]
         future_test_user_list.append(user_id)
     future_test_user_list = list(set(future_test_user_list))
@@ -296,22 +304,25 @@ def train_valid_test_partition():
     sharing_user_list = list(set(past_train_user_list + future_train_user_list + future_test_user_list))
     
     new_past_train_tweets = []
-    for tweet in past_train_tweets:
+    for tweet in tqdm(past_train_tweets):
         user_id = tweet.strip('\n').split('\t')[2]
         if user_id in sharing_user_list:
             new_past_train_tweets.append(tweet)
             
     new_future_train_tweets = []
-    for tweet in future_train_tweets:
+    for tweet in tqdm(future_train_tweets):
         user_id = tweet.strip('\n').split('\t')[2]
         if user_id in sharing_user_list:
             new_future_train_tweets.append(tweet)
             
     new_future_test_tweets = []
-    for tweet in future_test_tweets:
+    for tweet in tqdm(future_test_tweets):
         user_id = tweet.strip('\n').split('\t')[2]
         if user_id in sharing_user_list:
             new_future_test_tweets.append(tweet)
+            
+    print('all user number is: '+str(len(sharing_user_list)))
+    print('all tweets number is: '+str(len(new_past_train_tweets)+len(new_future_train_tweets)+len(new_future_test_tweets)))
     
     # secondly, create the user_hashtag_interact_dict and the hashtag_user_interact_dict, keep tweets with hashtags used >= 3 users , then give tweet_id, user_id, hashtag_id
     
@@ -319,7 +330,7 @@ def train_valid_test_partition():
 
 def read_all(data_dir):
     
-    regenerate_filtered_user_with_5_more_tweets_per_month_with_hashtags = True
+    regenerate_filtered_user_with_5_more_tweets_per_month_with_hashtags = False
     second_filter_user_with_proper_hashtag_enough_tweets = False
     
     
@@ -330,7 +341,8 @@ def read_all(data_dir):
         
         
         # month 1, 2, 3, 4, 5, 6
-        for mon in range(3, 7):
+        '''
+        for mon in range(1, 7):
             print('-'*50+' processing month of '+str(mon))
             start_day = day_dir.index('20220'+str(mon)+'01')
             end_day = day_dir.index('20220'+str(mon+1)+'01')
@@ -339,7 +351,7 @@ def read_all(data_dir):
                 if str(day)[0]=='2' and str(day)[5]==str(mon):
                     each_day_user_tweet_dict = read_day(data_dir+'/'+day)
                     write_dict_to_json_file(each_day_user_tweet_dict, 'pre_filter_user_with_hashtags_day'+str(day))
-        
+        '''
         for mon in range(1, 7):  
             print('-'*50+' processing month of '+str(mon)+' for filtering user with enough tweets')  
             start_day = day_dir.index('20220'+str(mon)+'01')
