@@ -274,7 +274,7 @@ def train_valid_test_partition():
     print('filtered tweets count: '+str(len(all_tweets_first)))
     print('filtered tweets count without duplication: '+str(real_count))
     print('previous all count of tweets: '+str(all_count))
-            
+    
     # sequencing all tweets by timestamps and split the train, validation, and test set, keep the sharing user list
     all_tweets_first.sort()
     filtered_tweets_num = len(all_tweets_first)
@@ -325,9 +325,48 @@ def train_valid_test_partition():
     print('all tweets number is: '+str(len(new_past_train_tweets)+len(new_future_train_tweets)+len(new_future_test_tweets)))
     
     # secondly, create the user_hashtag_interact_dict and the hashtag_user_interact_dict, keep tweets with hashtags used >= 3 users , then give tweet_id, user_id, hashtag_id
+    past_train_user_aggre_info = {}
+    past_train_hashtag_aggre_info = {}
+    for tweet in tqdm(new_past_train_tweets):
+        timestamp, tweet_id, user_id, filtered_tweet, tag = tweet.strip('\n').split('\t')[0], tweet.strip('\n').split('\t')[1], tweet.strip('\n').split('\t')[2], tweet.strip('\n').split('\t')[3], tweet.strip('\n').split('\t')[4]
+        # construct user_hashtag_interact_dict: past_train_user_aggre_info
+        if user_id in past_train_user_aggre_info:
+            if tag in past_train_user_aggre_info[user_id]:
+                try:
+                    past_train_user_aggre_info[user_id][tag].append(tweet)
+                    yes_num+=1
+                except:
+                    past_train_user_aggre_info[user_id][tag] = [tweet]
+            else:
+                try:
+                    past_train_user_aggre_info[user_id][tag] = [tweet]
+                except:
+                    past_train_user_aggre_info[user_id] = {tag: [tweet]}
+        else:
+            past_train_user_aggre_info[user_id] = {tag: [tweet]}
     
-    
+        # construct hashtag_user_interact_dict: past_train_hashtag_aggre_info
+        if tag in past_train_hashtag_aggre_info:
+            if user_id in past_train_hashtag_aggre_info[tag]:
+                try:
+                    past_train_hashtag_aggre_info[tag][user_id].append(tweet)
+                    no_num+=1
+                except:
+                    past_train_hashtag_aggre_info[tag][user_id] = [tweet]
+            else:
+                try:
+                    past_train_hashtag_aggre_info[tag][user_id] = [tweet]
+                except:
+                    past_train_hashtag_aggre_info[tag] = {user_id: [tweet]}
+        else:
+            past_train_hashtag_aggre_info[tag] = {user_id: [tweet]}
 
+    # after aggregating user_hashtag_interact_dict and hashtag_user_interact_dict, filter out hashtags used by less than 3 users
+    
+    
+    
+    
+        
 def read_all(data_dir):
     
     regenerate_filtered_user_with_5_more_tweets_per_month_with_hashtags = False
