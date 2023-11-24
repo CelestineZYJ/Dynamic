@@ -304,15 +304,24 @@ def construct_hashtag_user_interact_dict(new_past_train_tweets):
     user_aggre_dict_del_uid = []
     new_past_train_hashtag_aggre_info = past_train_hashtag_aggre_info.copy()
     for tag in new_past_train_hashtag_aggre_info:
-        if len(new_past_train_hashtag_aggre_info[tag]) < 3:
+        if len(new_past_train_hashtag_aggre_info[tag]) < 3 or len(new_past_train_hashtag_aggre_info[tag]) > 50:
             del_tag_num+=1
-            for user_id in new_past_train_hashtag_aggre_info[tag]:
-                del past_train_user_aggre_info[user_id][tag]
-                if len(past_train_user_aggre_info[user_id]) < 2:
-                    user_aggre_dict_del_uid.append(user_id)
-                    del past_train_user_aggre_info[user_id]
-                    del_user_num+=1
             del past_train_hashtag_aggre_info[tag]
+            for user_id in new_past_train_hashtag_aggre_info[tag]:
+                if user_id in past_train_user_aggre_info:
+                    del past_train_user_aggre_info[user_id][tag]                
+                    # if len(past_train_user_aggre_info[user_id]) < 3:
+                    #     user_aggre_dict_del_uid.append(user_id)
+                    #     del past_train_user_aggre_info[user_id]
+                    #     del_user_num+=1
+                        
+    new_past_train_user_aggre_info = past_train_user_aggre_info.copy()
+    for user_id in new_past_train_user_aggre_info:
+        if len(past_train_user_aggre_info[user_id]) < 3:
+            user_aggre_dict_del_uid.append(user_id)
+            del past_train_user_aggre_info[user_id]
+            del_user_num+=1
+
             
     new_tweet_num = calculte_tweet_number(past_train_user_aggre_info)
     print('\ndelete '+str(del_tag_num)+' hashtags')
@@ -410,10 +419,10 @@ def user_hashtag_aggre_partition():
     # secondly, create the user_hashtag_interact_dict and the hashtag_user_interact_dict, keep tweets with hashtags used >= 3 users , then give tweet_id, user_id, hashtag_id
     
 
-    past_train_user_aggre_info, past_train_hashtag_aggre_info, past_train_uid_list = construct_hashtag_user_interact_dict(new_past_train_tweets)
-    future_train_user_aggre_info, future_train_hashtag_aggre_info, future_train_uid_list = construct_hashtag_user_interact_dict(new_future_train_tweets)
-    future_test_user_aggre_info, future_test_hashtag_aggre_info, future_test_uid_list = construct_hashtag_user_interact_dict(new_future_test_tweets)
-    all_del_uid_list = list(set(past_train_uid_list+future_train_uid_list+future_test_uid_list))
+    past_train_user_aggre_info, past_train_hashtag_aggre_info, del_past_train_uid_list = construct_hashtag_user_interact_dict(new_past_train_tweets)
+    future_train_user_aggre_info, future_train_hashtag_aggre_info, del_future_train_uid_list = construct_hashtag_user_interact_dict(new_future_train_tweets)
+    future_test_user_aggre_info, future_test_hashtag_aggre_info, del_future_test_uid_list = construct_hashtag_user_interact_dict(new_future_test_tweets)
+    all_del_uid_list = list(set(del_past_train_uid_list+del_future_train_uid_list+del_future_test_uid_list))
     del_uid_in_user_aggre_dict(past_train_user_aggre_info, all_del_uid_list)
     del_uid_in_user_aggre_dict(future_train_user_aggre_info, all_del_uid_list)
     del_uid_in_user_aggre_dict(future_test_user_aggre_info, all_del_uid_list)
