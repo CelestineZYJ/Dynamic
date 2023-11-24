@@ -93,15 +93,15 @@ def filter_user_with_enough_tweets(user_tweet_dict, filtered_user_tweet_dict):
     num_filtered_users_tweets = 0
     
     for user_id in user_tweet_dict.keys():
-        if user_tweet_dict[user_id]['user_tweet_num']>=5 and user_tweet_dict[user_id]['user_tweet_num']<=30: # 1, 2: 5-na, 3, 4: 6-100, 5: 60, 6:8-50
+        if user_tweet_dict[user_id]['user_tweet_num']>=3 and user_tweet_dict[user_id]['user_tweet_num']<=40: # 1, 2: 5-na, 3, 4: 6-100, 5: 60, 6:8-50
             # random sample
-            if random.randint(1,10)<=2:
-                filtered_user_tweet_dict[user_id]=user_tweet_dict[user_id]
-                num_filtered_users_tweets+=filtered_user_tweet_dict[user_id]['user_tweet_num']
+            # if random.randint(1,10)<=2:
+            filtered_user_tweet_dict[user_id]=user_tweet_dict[user_id]
+            num_filtered_users_tweets+=filtered_user_tweet_dict[user_id]['user_tweet_num']
             # num_filtered_user_tweet_dict[user_id]=user_tweet_dict[user_id]['user_tweet_num']
 
     # print(num_filtered_user_tweet_dict) 
-    print('There are totally '+str(len(filtered_user_tweet_dict))+' users who have 5 more tweets in one month, with totally '+str(num_filtered_users_tweets)+' tweets')     
+    print('There are totally '+str(len(filtered_user_tweet_dict))+' users who have 3 more tweets in one month, with totally '+str(num_filtered_users_tweets)+' tweets')     
     print('The original number of users in these days is: '+str(len(user_tweet_dict)))
     
     return filtered_user_tweet_dict
@@ -134,19 +134,19 @@ def filter_user_with_proper_hashtags(filtered_user_tweet_dict):
                 new_proper_hashtags = []
                 for hashtag in hashtags:
                     hashtag['text'] = hashtag['text'].lower()
-                    if hashtag_num_dict[hashtag['text']]>=10 and len(hashtag['text'])>=5 and hashtag_num_dict[hashtag['text']]<=500 and len(new_hashtag_user_dict[hashtag['text']])>=3 and len(new_hashtag_user_dict[hashtag['text']]) <= 500:
+                    if hashtag_num_dict[hashtag['text']]>=3 and len(hashtag['text'])>=5 and hashtag_num_dict[hashtag['text']]<=500 and len(new_hashtag_user_dict[hashtag['text']])>=3 and len(new_hashtag_user_dict[hashtag['text']]) <= 500:
                         new_hashtag_list.append(hashtag['text'])
                         new_proper_hashtags.append(hashtag)
                         each_tweet['entities']['hashtags']=new_proper_hashtags
                         if each_tweet not in new_history_tweets:
                             new_history_tweets.append(each_tweet)
                     
-        if len(new_history_tweets) >= 5 and len(new_history_tweets) <= 50:
-            if len(new_history_tweets)>30:
-                new_history_tweets = random.sample(new_history_tweets, 30)
+        if len(new_history_tweets) >= 3 and len(new_history_tweets) <= 50:
+            # if len(new_history_tweets)>30:
+            #     new_history_tweets = random.sample(new_history_tweets, 30)
             filter_user_hashtag_tweet_dict[user_id]=new_history_tweets
                  
-    print('the total number of filtered users with proper hashtags and 5 more history tweets in one month is: '+str(len(filter_user_hashtag_tweet_dict)))
+    print('the total number of filtered users with proper hashtags and 3 more history tweets in one month is: '+str(len(filter_user_hashtag_tweet_dict)))
     print('the total number of the filtered hashtags is: '+str(len(list(set(new_hashtag_list)))))
     return filter_user_hashtag_tweet_dict
 
@@ -171,8 +171,8 @@ def write_dict_to_json_file(filtered_user_tweet_dict, mon):
     filter_user_file.close()
     
     
-def read_json_file_to_dict(mon):
-    filter_user_file = open('middle_processed_data/'+str(mon)+'.json', 'r')
+def read_json_file_to_dict(dict_name):
+    filter_user_file = open('middle_processed_data/'+str(dict_name)+'.json', 'r')
     filter_user_dict_obj = filter_user_file.read()
     filtered_user_tweet_dict = json.loads(filter_user_dict_obj)
     filter_user_file.close()
@@ -247,7 +247,85 @@ def filter_meaningful_tweet(tweet_str, hashtag_list):
     return filtered_tweet, hashtag_list
 
 
-def train_valid_test_partition():
+def calculte_tweet_number(user_aggre_info_dict):
+    tweet_num = 0
+    for user_id in user_aggre_info_dict:
+        for tag in user_aggre_info_dict[user_id]:
+            tweet_num+=len(user_aggre_info_dict[user_id][tag])
+    return tweet_num
+
+
+
+def construct_hashtag_user_interact_dict(new_past_train_tweets):
+    past_train_user_aggre_info = {}
+    past_train_hashtag_aggre_info = {}
+    for tweet in tqdm(new_past_train_tweets):
+        timestamp, tweet_id, user_id, filtered_tweet, tag = tweet.strip('\n').split('\t')[0], tweet.strip('\n').split('\t')[1], tweet.strip('\n').split('\t')[2], tweet.strip('\n').split('\t')[3], tweet.strip('\n').split('\t')[4]
+        # construct user_hashtag_interact_dict: past_train_user_aggre_info
+        if user_id in past_train_user_aggre_info:
+            if tag in past_train_user_aggre_info[user_id]:
+                try:
+                    past_train_user_aggre_info[user_id][tag].append(tweet)
+                    yes_num+=1
+                except:
+                    past_train_user_aggre_info[user_id][tag] = [tweet]
+            else:
+                try:
+                    past_train_user_aggre_info[user_id][tag] = [tweet]
+                except:
+                    past_train_user_aggre_info[user_id] = {tag: [tweet]}
+        else:
+            past_train_user_aggre_info[user_id] = {tag: [tweet]}
+        
+        # construct hashtag_user_interact_dict: past_train_hashtag_aggre_info
+        if tag in past_train_hashtag_aggre_info:
+            if user_id in past_train_hashtag_aggre_info[tag]:
+                try:
+                    past_train_hashtag_aggre_info[tag][user_id].append(tweet)
+                    no_num+=1
+                except:
+                    past_train_hashtag_aggre_info[tag][user_id] = [tweet]
+            else:
+                try:
+                    past_train_hashtag_aggre_info[tag][user_id] = [tweet]
+                except:
+                    past_train_hashtag_aggre_info[tag] = {user_id: [tweet]}
+        else:
+            past_train_hashtag_aggre_info[tag] = {user_id: [tweet]}
+
+    ori_tweet_num = calculte_tweet_number(past_train_user_aggre_info)
+    print('there are totally '+str(len(past_train_user_aggre_info))+' users')
+    print('there are totally '+str(len(past_train_hashtag_aggre_info))+' hashtags')
+    print('there are totally '+str(ori_tweet_num)+' tweets')
+
+    # after aggregating user_hashtag_interact_dict and hashtag_user_interact_dict, filter out hashtags used by less than 3 users
+    del_tag_num = 0
+    del_user_num = 0
+    user_aggre_dict_del_uid = []
+    new_past_train_hashtag_aggre_info = past_train_hashtag_aggre_info.copy()
+    for tag in new_past_train_hashtag_aggre_info:
+        if len(new_past_train_hashtag_aggre_info[tag]) < 3:
+            del_tag_num+=1
+            for user_id in new_past_train_hashtag_aggre_info[tag]:
+                del past_train_user_aggre_info[user_id][tag]
+                if len(past_train_user_aggre_info[user_id]) < 2:
+                    user_aggre_dict_del_uid.append(user_id)
+                    del past_train_user_aggre_info[user_id]
+                    del_user_num+=1
+            del past_train_hashtag_aggre_info[tag]
+            
+    new_tweet_num = calculte_tweet_number(past_train_user_aggre_info)
+    print('\ndelete '+str(del_tag_num)+' hashtags')
+    print('\ndelete '+str(del_user_num)+' users')
+    print('delete '+str(ori_tweet_num-new_tweet_num)+' tweets\n')
+    print('there are totally '+str(len(past_train_user_aggre_info))+' users')
+    print('there are totally '+str(len(past_train_hashtag_aggre_info))+' hashtags')
+    print('there are totally '+str(new_tweet_num)+' tweets\n')
+
+    return past_train_user_aggre_info, past_train_hashtag_aggre_info, user_aggre_dict_del_uid
+
+
+def user_hashtag_aggre_partition():
     all_tweets_first = []
     # mon 1, 2, 3, 4, 5, 6
     all_count = 0
@@ -301,7 +379,12 @@ def train_valid_test_partition():
         future_test_user_list.append(user_id)
     future_test_user_list = list(set(future_test_user_list))
     
-    sharing_user_list = list(set(past_train_user_list + future_train_user_list + future_test_user_list))
+    
+    all_user_list = list(set(past_train_user_list + future_train_user_list + future_test_user_list))
+    sharing_user_list = []
+    for user in all_user_list:
+        if user in past_train_user_list and user in future_train_user_list and user in future_test_user_list:
+            sharing_user_list.append(user)
     
     new_past_train_tweets = []
     for tweet in tqdm(past_train_tweets):
@@ -325,59 +408,63 @@ def train_valid_test_partition():
     print('all tweets number is: '+str(len(new_past_train_tweets)+len(new_future_train_tweets)+len(new_future_test_tweets)))
     
     # secondly, create the user_hashtag_interact_dict and the hashtag_user_interact_dict, keep tweets with hashtags used >= 3 users , then give tweet_id, user_id, hashtag_id
-    past_train_user_aggre_info = {}
-    past_train_hashtag_aggre_info = {}
-    for tweet in tqdm(new_past_train_tweets):
-        timestamp, tweet_id, user_id, filtered_tweet, tag = tweet.strip('\n').split('\t')[0], tweet.strip('\n').split('\t')[1], tweet.strip('\n').split('\t')[2], tweet.strip('\n').split('\t')[3], tweet.strip('\n').split('\t')[4]
-        # construct user_hashtag_interact_dict: past_train_user_aggre_info
-        if user_id in past_train_user_aggre_info:
-            if tag in past_train_user_aggre_info[user_id]:
-                try:
-                    past_train_user_aggre_info[user_id][tag].append(tweet)
-                    yes_num+=1
-                except:
-                    past_train_user_aggre_info[user_id][tag] = [tweet]
-            else:
-                try:
-                    past_train_user_aggre_info[user_id][tag] = [tweet]
-                except:
-                    past_train_user_aggre_info[user_id] = {tag: [tweet]}
-        else:
-            past_train_user_aggre_info[user_id] = {tag: [tweet]}
     
-        # construct hashtag_user_interact_dict: past_train_hashtag_aggre_info
-        if tag in past_train_hashtag_aggre_info:
-            if user_id in past_train_hashtag_aggre_info[tag]:
-                try:
-                    past_train_hashtag_aggre_info[tag][user_id].append(tweet)
-                    no_num+=1
-                except:
-                    past_train_hashtag_aggre_info[tag][user_id] = [tweet]
-            else:
-                try:
-                    past_train_hashtag_aggre_info[tag][user_id] = [tweet]
-                except:
-                    past_train_hashtag_aggre_info[tag] = {user_id: [tweet]}
-        else:
-            past_train_hashtag_aggre_info[tag] = {user_id: [tweet]}
 
-    # after aggregating user_hashtag_interact_dict and hashtag_user_interact_dict, filter out hashtags used by less than 3 users
+    past_train_user_aggre_info, past_train_hashtag_aggre_info, past_train_uid_list = construct_hashtag_user_interact_dict(new_past_train_tweets)
+    future_train_user_aggre_info, future_train_hashtag_aggre_info, future_train_uid_list = construct_hashtag_user_interact_dict(new_future_train_tweets)
+    future_test_user_aggre_info, future_test_hashtag_aggre_info, future_test_uid_list = construct_hashtag_user_interact_dict(new_future_test_tweets)
+    all_del_uid_list = list(set(past_train_uid_list+future_train_uid_list+future_test_uid_list))
+    del_uid_in_user_aggre_dict(past_train_user_aggre_info, all_del_uid_list)
+    del_uid_in_user_aggre_dict(future_train_user_aggre_info, all_del_uid_list)
+    del_uid_in_user_aggre_dict(future_test_user_aggre_info, all_del_uid_list)
     
     
+    write_dict_to_json_file(past_train_user_aggre_info, 'past_train_user_aggre_info_dict')
+    write_dict_to_json_file(past_train_hashtag_aggre_info, 'past_train_hashtag_aggre_info_dict')
+    write_dict_to_json_file(future_train_user_aggre_info, 'future_train_user_aggre_info_dict')
+    write_dict_to_json_file(future_train_hashtag_aggre_info, 'future_train_hashtag_aggre_info_dict')
+    write_dict_to_json_file(future_test_user_aggre_info, 'future_test_user_aggre_info_dict')
+    write_dict_to_json_file(future_test_hashtag_aggre_info, 'future_test_hashtag_aggre_info_dict')
+
+
+def del_uid_in_user_aggre_dict(user_aggre_info, all_del_uid_list):
+    new_user_aggre_info = user_aggre_info.copy()
+    del_user_num = 0
+    for user_id in new_user_aggre_info:
+        if user_id in all_del_uid_list:
+            del user_aggre_info[user_id]
+            del_user_num+=1
+            
+    print('delete '+str(del_user_num)+' users to keep consistent for all subsets')
+    print('there are totally '+str(len(user_aggre_info))+' users in user_hashtag_aggre_interact_dict')
     
+
+def formulate_llm_input_past_train(past_train_user_aggre_info, past_train_hashtag_aggre_info):
+    for user in past_train_user_aggre_info:
+        for tag in past_train_hashtag_aggre_info:
+            pass
+
+
+def train_valid_test_partition():
+    past_train_user_aggre_info = read_json_file_to_dict('past_train_user_aggre_info_dict')    
+    past_train_hashtag_aggre_info = read_json_file_to_dict('past_train_hashtag_aggre_info_dict')
+    future_train_user_aggre_info = read_json_file_to_dict('future_train_user_aggre_info_dict')
+    future_train_hashtag_aggre_info = read_json_file_to_dict('future_train_hashtag_aggre_info_dict')
+    future_test_user_aggre_info = read_json_file_to_dict('future_test_user_aggre_info_dict')
+    future_test_hashtag_aggre_info = read_json_file_to_dict('future_test_hashtag_aggre_info_dict')
     
-        
+    formulate_llm_input_past_train(past_train_user_aggre_info, past_train_hashtag_aggre_info)
+    
+
 def read_all(data_dir):
-    
     regenerate_filtered_user_with_5_more_tweets_per_month_with_hashtags = False
     second_filter_user_with_proper_hashtag_enough_tweets = False
-    
+    process_user_hashtag_aggre_partition = True
     
     if regenerate_filtered_user_with_5_more_tweets_per_month_with_hashtags:
         day_dir = os.listdir(data_dir)
         day_dir.sort()
         print('days: '+str(day_dir[:3]))
-        
         
         # month 1, 2, 3, 4, 5, 6
         '''
@@ -438,11 +525,12 @@ def read_all(data_dir):
             filter_user_hashtag_tweet_dict = filter_user_with_proper_hashtags(filtered_user_tweet_dict)
             
             write_dict_to_json_file(filter_user_hashtag_tweet_dict, 'second_filter_user_proper_tag_enough_tweets_mon'+str(mon))
-    else:
-        train_valid_test_partition()
+    elif process_user_hashtag_aggre_partition:
+        user_hashtag_aggre_partition()
         
-  
-  
+    else:   
+        train_valid_test_partition()
+
 if __name__ =='__main__':
     
     data_dir='./2022_twitter_data'
