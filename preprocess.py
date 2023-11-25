@@ -255,7 +255,6 @@ def calculte_tweet_number(user_aggre_info_dict):
     return tweet_num
 
 
-
 def construct_hashtag_user_interact_dict(new_past_train_tweets):
     past_train_user_aggre_info = {}
     past_train_hashtag_aggre_info = {}
@@ -321,7 +320,6 @@ def construct_hashtag_user_interact_dict(new_past_train_tweets):
             user_aggre_dict_del_uid.append(user_id)
             del past_train_user_aggre_info[user_id]
             del_user_num+=1
-
             
     new_tweet_num = calculte_tweet_number(past_train_user_aggre_info)
     print('\ndelete '+str(del_tag_num)+' hashtags')
@@ -388,7 +386,6 @@ def user_hashtag_aggre_partition():
         future_test_user_list.append(user_id)
     future_test_user_list = list(set(future_test_user_list))
     
-    
     all_user_list = list(set(past_train_user_list + future_train_user_list + future_test_user_list))
     sharing_user_list = []
     for user in all_user_list:
@@ -417,7 +414,6 @@ def user_hashtag_aggre_partition():
     print('all tweets number is: '+str(len(new_past_train_tweets)+len(new_future_train_tweets)+len(new_future_test_tweets)))
     
     # secondly, create the user_hashtag_interact_dict and the hashtag_user_interact_dict, keep tweets with hashtags used >= 3 users , then give tweet_id, user_id, hashtag_id
-    
 
     past_train_user_aggre_info, past_train_hashtag_aggre_info, del_past_train_uid_list = construct_hashtag_user_interact_dict(new_past_train_tweets)
     future_train_user_aggre_info, future_train_hashtag_aggre_info, del_future_train_uid_list = construct_hashtag_user_interact_dict(new_future_train_tweets)
@@ -426,7 +422,6 @@ def user_hashtag_aggre_partition():
     del_uid_in_user_aggre_dict(past_train_user_aggre_info, all_del_uid_list)
     del_uid_in_user_aggre_dict(future_train_user_aggre_info, all_del_uid_list)
     del_uid_in_user_aggre_dict(future_test_user_aggre_info, all_del_uid_list)
-    
     
     write_dict_to_json_file(past_train_user_aggre_info, 'past_train_user_aggre_info_dict')
     write_dict_to_json_file(past_train_hashtag_aggre_info, 'past_train_hashtag_aggre_info_dict')
@@ -446,13 +441,47 @@ def del_uid_in_user_aggre_dict(user_aggre_info, all_del_uid_list):
             
     print('delete '+str(del_user_num)+' users to keep consistent for all subsets')
     print('there are totally '+str(len(user_aggre_info))+' users in user_hashtag_aggre_interact_dict')
-    
+
+
+def process_sort_tweets_by_time(tweets_list):
+    sorted_tweets = ''
+    tweets_list = tweets_list.sort()
+    for tweet in tweets_list:
+        timestamp, tweet_id, user_id, filtered_tweet, tag = tweet.strip('\n').split('\t')[0], tweet.strip('\n').split('\t')[1], tweet.strip('\n').split('\t')[2], tweet.strip('\n').split('\t')[3], tweet.strip('\n').split('\t')[4]
+        sorted_tweets+=('\n'+filtered_tweet)
+    return sorted_tweets
+        
 
 def formulate_llm_input_past_train(past_train_user_aggre_info, past_train_hashtag_aggre_info):
-    for user in past_train_user_aggre_info:
-        for tag in past_train_hashtag_aggre_info:
-            pass
-
+    input_past_train_set = []
+    count=0
+    # for each user, establish many user-hashtag pairs
+    for user_id in past_train_user_aggre_info:
+        count+=1
+        if count >=100:
+            break
+        input_past_train_set.append('\nuser_id: '+user_id+'\n')
+        # acquire this user's history tweets
+        user_history_tweets = []
+        for tag in past_train_user_aggre_info[user_id]:
+            tweets_list = past_train_user_aggre_info[user_id][tag]
+            user_history_tweets = list(set(user_history_tweets+tweets_list))
+        user_history_tweets_str = process_sort_tweets_by_time(user_history_tweets)
+        
+        # establish thisUser-manyHashtag pairs: positive samples of user-hashtag interact pairs
+        positive_tags = []
+        for tag in past_train_user_aggre_info[user_id]:    
+            positive_tags.append(tag)
+            # acquire all hashtag contexts from users who used it
+            hashtag_context_tweets = []
+            for user_id in past_train_hashtag_aggre_info[tag]:
+                tag_context_tweets_from_each_user_list = past_train_hashtag_aggre_info[tag][user_id]
+                hashtag_context_tweets = list(set(hashtag_context_tweets+tag_context_tweets_from_each_user_list))
+            hashtag_context_tweets_str = process_sort_tweets_by_time(hashtag_context_tweets)
+            input_sentence = 'user history tweets include: '+user_history_tweets_str+'hashtag context tweets include: '+hashtag_context_tweets_str
+            input_user_hashtag_interact_pair = {'text':input_sentence, 'label':1}
+            input_past_train_set.append(input_user_hashtag_interact_pair)
+            
 
 def train_valid_test_partition():
     past_train_user_aggre_info = read_json_file_to_dict('past_train_user_aggre_info_dict')    
@@ -468,7 +497,7 @@ def train_valid_test_partition():
 def read_all(data_dir):
     regenerate_filtered_user_with_5_more_tweets_per_month_with_hashtags = False
     second_filter_user_with_proper_hashtag_enough_tweets = False
-    process_user_hashtag_aggre_partition = True
+    process_user_hashtag_aggre_partition = False
     
     if regenerate_filtered_user_with_5_more_tweets_per_month_with_hashtags:
         day_dir = os.listdir(data_dir)
@@ -539,6 +568,7 @@ def read_all(data_dir):
         
     else:   
         train_valid_test_partition()
+
 
 if __name__ =='__main__':
     
