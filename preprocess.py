@@ -556,6 +556,7 @@ def formulate_llm_input_past_future_train(user_list, past_train_user_aggre_info,
                 neg_past_train_tag_context_tweets_from_each_user_list = past_train_hashtag_aggre_info[tag][user_id]
                 neg_past_train_hashtag_context_tweets = list(set(neg_past_train_hashtag_context_tweets+neg_past_train_tag_context_tweets_from_each_user_list))
             neg_past_train_hashtag_context_tweets_str = process_sort_tweets_by_time(neg_past_train_hashtag_context_tweets)
+            
             neg_future_train_hashtag_context_tweets = []
             for user_id in past_train_hashtag_aggre_info[tag]:
                 neg_future_train_tag_context_tweets_from_each_user_list = past_train_hashtag_aggre_info[tag][user_id]
@@ -676,7 +677,122 @@ def formulate_llm_input_future_test(user_list, past_train_user_aggre_info, past_
     with open('dataset/input_future_test_data.json', 'a') as out:
         for l in input_future_test_set:
             json_str=json.dumps(l)
+            out.write(json_str+"\n")  
+
+
+def formulate_llm_input_past_future_test(user_list, past_train_user_aggre_info, past_train_hashtag_aggre_info, future_train_user_aggre_info, future_train_hashtag_aggre_info, future_test_user_aggre_info, future_test_hashtag_aggre_info):
+    input_future_test_set = []
+    # for each user, establish many user-hashtag pairs
+    all_new_tag_count = 0
+    all_old_tag_count = 0
+    all_past_user_history_tweets_count = 0
+    all_test_user_history_tweets_count = 0
+    for global_user_id in user_list:
+        # input_future_train_set.append('\nuser_id: '+user_id+'\n')
+        # acquire this user's history tweets
+        user_history_tweets = []
+        for tag in past_train_user_aggre_info[global_user_id]:
+            all_past_user_history_tweets_count+=len(past_train_user_aggre_info[global_user_id][tag])  
+            tweets_list = past_train_user_aggre_info[global_user_id][tag]
+            user_history_tweets = list(set(user_history_tweets+tweets_list))
+        for tag in future_train_user_aggre_info[global_user_id]:
+            tweets_list = future_train_user_aggre_info[global_user_id][tag]
+            user_history_tweets = list(set(user_history_tweets+tweets_list))
+        user_history_tweets_str = process_sort_tweets_by_time(user_history_tweets)
+        
+        # establish thisUser-manyHashtag pairs: positive samples of user-hashtag interact pairs
+        new_tag_count = 0
+        old_tag_count = 0
+        positive_tags = []
+
+        for tag in future_test_user_aggre_info[global_user_id].keys():  
+            all_test_user_history_tweets_count+=len(future_test_user_aggre_info[global_user_id][tag])  
+            positive_tags.append(tag)
+            # acquire all hashtag contexts from users who used it
+            pos_past_train_hashtag_context_tweets = []
+            new_tag_flag = 0
+            if tag in past_train_hashtag_aggre_info:
+                for user_id in past_train_hashtag_aggre_info[tag]:
+                    pos_past_train_tag_context_tweets_from_each_user_list = past_train_hashtag_aggre_info[tag][user_id]
+                    pos_past_train_hashtag_context_tweets = list(set(pos_past_train_hashtag_context_tweets+pos_past_train_tag_context_tweets_from_each_user_list))
+            else:
+                new_tag_flag+=0.5
+            if tag in future_train_hashtag_aggre_info:
+                for user_id in future_train_hashtag_aggre_info[tag]:
+                    pos_past_train_tag_context_tweets_from_each_user_list = future_train_hashtag_aggre_info[tag][user_id]
+                    pos_past_train_hashtag_context_tweets = list(set(pos_past_train_hashtag_context_tweets+pos_past_train_tag_context_tweets_from_each_user_list))
+            else:
+                new_tag_flag+=0.5
+            pos_past_train_hashtag_context_tweets_str = process_sort_tweets_by_time(pos_past_train_hashtag_context_tweets)
+            if new_tag_flag==1:
+                new_tag_count+=1
+            else:
+                old_tag_count+=1
+            pos_future_test_hashtag_context_tweets = []
+            for user_id in future_test_hashtag_aggre_info[tag]:
+                # note that the future tweet by the specific user who we want to predict whether would interact with hashtag x, the user's future tweets are inaccessible
+                if not (user_id == global_user_id):
+                    pos_tag_future_test_context_tweets_from_each_user_list = future_test_hashtag_aggre_info[tag][user_id]
+                    pos_future_test_hashtag_context_tweets = list(set(pos_future_test_hashtag_context_tweets+pos_tag_future_test_context_tweets_from_each_user_list))
+            pos_future_test_hashtag_context_tweets_str = process_sort_tweets_by_time(pos_future_test_hashtag_context_tweets)
+            
+            input_sentence = 'user history tweets include: '+user_history_tweets_str+' hashtag past context tweets include: '+pos_past_train_hashtag_context_tweets_str+' hashtag future context tweets include: '+pos_future_test_hashtag_context_tweets_str
+            input_user_hashtag_interact_pair = {'text':input_sentence, 'label':1, 'user_id':global_user_id, 'hashtag':tag}
+            input_future_test_set.append(input_user_hashtag_interact_pair)
+        
+        # establish thisUser-manyHashtag pairs: negative samples of user-hashtag interact pairs
+        # sample negative hashtags of 10 times number of postive hashtags, apply
+        # negative hashtags = all hashtags - postive hashtags -> do not apply, too much
+        negative_tags = random.sample(list(set(list(future_test_hashtag_aggre_info.keys()))-set(positive_tags)), 10*len(positive_tags))
+        # negative_tags = list(set(list(future_test_hashtag_aggre_info.keys()))-set(positive_tags))
+        for tag in negative_tags:
+            neg_past_train_hashtag_context_tweets = []
+            new_tag_flag = 0
+            if tag in past_train_hashtag_aggre_info:
+                for user_id in past_train_hashtag_aggre_info[tag]:
+                    neg_tag_past_train_context_tweets_from_each_user_list = past_train_hashtag_aggre_info[tag][user_id]
+                    neg_past_train_hashtag_context_tweets = list(set(neg_past_train_hashtag_context_tweets+neg_tag_past_train_context_tweets_from_each_user_list))
+            else:
+                pass
+                # new_tag_flag+=0.5
+            if tag in future_train_hashtag_aggre_info:
+                for user_id in future_train_hashtag_aggre_info[tag]:
+                    neg_tag_past_train_context_tweets_from_each_user_list = future_train_hashtag_aggre_info[tag][user_id]
+                    neg_past_train_hashtag_context_tweets = list(set(neg_past_train_hashtag_context_tweets+neg_tag_past_train_context_tweets_from_each_user_list))
+            else:
+                # new_tag_flag+=0.5
+                pass
+            neg_past_train_hashtag_context_tweets_str = process_sort_tweets_by_time(neg_past_train_hashtag_context_tweets)
+            # if new_tag_flag==1:
+            #     new_tag_count+=1
+            # else:
+            #     old_tag_count+=1
+            
+            neg_future_test_hashtag_context_tweets = []
+            for user_id in future_test_hashtag_aggre_info[tag]:
+                # note that the future tweet by the specific user who we want to predict whether would interact with hashtag x, the user's future tweets are inaccessible
+                if not (user_id == global_user_id):
+                    neg_tag_context_tweets_from_each_user_list = future_test_hashtag_aggre_info[tag][user_id]
+                    neg_future_test_hashtag_context_tweets = list(set(neg_future_test_hashtag_context_tweets+neg_tag_context_tweets_from_each_user_list))
+            neg_future_test_hashtag_context_tweets_str = process_sort_tweets_by_time(neg_future_test_hashtag_context_tweets)
+            
+            input_sentence = 'user history tweets include: '+user_history_tweets_str+' hashtag past context tweets include: '+neg_past_train_hashtag_context_tweets_str+' hashtag future context tweets include: '+neg_future_test_hashtag_context_tweets_str
+            input_user_hashtag_interact_pair = {'text':input_sentence, 'label':0, 'user_id':global_user_id, 'hashtag':tag}
+            input_future_test_set.append(input_user_hashtag_interact_pair)
+        all_new_tag_count+=new_tag_count
+        all_old_tag_count+=old_tag_count
+        
+    print('when testing, for all users in user_list, new/old hashtag = '+str(all_new_tag_count)+'/'+str(all_old_tag_count))
+    print('totally '+str(all_past_user_history_tweets_count)+' history tweets for all users in past training time')
+    print('totally '+str(all_test_user_history_tweets_count)+' history tweets for all users in future testing time')
+    
+    tempf = open('dataset/input_past_future_test_data.json', 'w')
+    tempf.close()
+    with open('dataset/input_past_future_test_data.json', 'a') as out:
+        for l in input_future_test_set:
+            json_str=json.dumps(l)
             out.write(json_str+"\n")   
+
 
 
 def train_valid_test_partition():
@@ -698,7 +814,8 @@ def train_valid_test_partition():
     # in testing, do not differentiate past and future tweets for user or hashtag
     formulate_llm_input_future_test(user_list, past_train_user_aggre_info, past_train_hashtag_aggre_info, future_train_user_aggre_info, future_train_hashtag_aggre_info, future_test_user_aggre_info, future_test_hashtag_aggre_info)
     
-    
+    # in testing, differentiate past and future tweets for user or hashtag
+    formulate_llm_input_past_future_test(user_list, past_train_user_aggre_info, past_train_hashtag_aggre_info, future_train_user_aggre_info, future_train_hashtag_aggre_info, future_test_user_aggre_info, future_test_hashtag_aggre_info)
     
     print('past train hashtag number: '+str(len(past_train_hashtag_aggre_info.keys())))
     print('future train hashtag number: '+str(len(future_train_hashtag_aggre_info.keys())))
