@@ -223,7 +223,7 @@ def read_all(data_dir, topic_category):
 
     # formulate the past training data
     input_past_train_set = []
-    for uid in new_past_train_user_list:
+    for uid in unify_user_conv_interact_list.keys():
         user_history_messa = []
         for each_conv in past_train_user_messages[uid]['convs']:
             user_history_messa.append(each_conv['messa_text'])
@@ -235,7 +235,7 @@ def read_all(data_dir, topic_category):
             if each_conv['conv_id'] in pos_conv:
                 continue
             else:
-                if past_train_conv_messages[each_conv['conv_id']]['messa_num'] >=2:
+                if past_train_conv_messages[each_conv['conv_id']]['messa_num'] >=3:
                     num_pos_conv_messas = past_train_conv_messages[each_conv['conv_id']]['messa_num']
                     pos_conv.append(each_conv['conv_id'])
                     pos_conv_context_messas = []
@@ -251,7 +251,7 @@ def read_all(data_dir, topic_category):
         negative_conv = random.sample(list(set(list(past_train_conv_messages.keys()))-set(pos_conv)), 10*len(pos_conv))
         for conv_id in negative_conv:
             neg_conv_context_messas = []
-            if past_train_conv_messages[conv_id]['messa_num'] >=2:
+            if past_train_conv_messages[conv_id]['messa_num'] >=3:
                 num_neg_conv_messas = past_train_conv_messages[conv_id]['messa_num']
                 for each_messa in past_train_conv_messages[conv_id]['messas']:
                     neg_conv_context_messas.append(each_messa['messa_text'])
@@ -268,7 +268,152 @@ def read_all(data_dir, topic_category):
         for l in input_past_train_set:
             json_str=json.dumps(l)
             out.write(json_str+"\n")   
+
+    # formulate the future training data
+    input_past_future_train_set = []
+    for uid in unify_user_conv_interact_list.keys():
+        past_user_history_messa = []
+        for each_conv in past_train_user_messages[uid]['convs']:
+            past_user_history_messa.append(each_conv['messa_text'])
+        num_past_user_history_messas = past_train_user_messages[uid]['messa_num']
+        past_user_history_messa_str = analyze_messages(past_user_history_messa)
+        future_user_history_messa = []
+        for each_conv in future_train_user_messages[uid]['convs']:
+            future_user_history_messa.append(each_conv['messa_text'])
+        num_future_user_history_messas = future_train_user_messages[uid]['messa_num']
+        future_user_history_messa_str = analyze_messages(future_user_history_messa)
+
+        pos_conv = []
+        for each_conv in future_train_user_messages[uid]['convs']:
+            if each_conv['conv_id'] in pos_conv:
+                continue
+            # for this conversation in future training dict, there exist messages in past training dict
+            else:
+                pos_past_conv_context_messas_str = ''
+                num_pos_past_conv_messas = 0
+                if each_conv['conv_id'] in past_train_conv_messages and past_train_conv_messages[each_conv['conv_id']]['messa_num'] >=3:
+                    print('positive tags: for this conversation in future training dict, there exist '+str(past_train_conv_messages[each_conv['conv_id']]['messa_num'])+' messages in past training dict')
+                    print('conv_id is '+each_conv['conv_id'])
+                    num_pos_past_conv_messas = past_train_conv_messages[each_conv['conv_id']]['messa_num']
+                    pos_past_conv_context_messas = []
+                    for each_messa in past_train_conv_messages[each_conv['conv_id']]['messas']:
+                        pos_past_conv_context_messas.append(each_messa['messa_text'])
+                    pos_past_conv_context_messas_str = analyze_messages(pos_past_conv_context_messas)
+
+                # for this conversation in future training dict, there is no messages in past training dict
+                num_pos_future_conv_messas = future_train_conv_messages[each_conv['conv_id']]['messa_num']
+                pos_conv.append(each_conv['conv_id'])
+                pos_future_conv_context_messas = []
+                for each_messa in future_train_conv_messages[each_conv['conv_id']]['messas']:
+                    pos_future_conv_context_messas.append(each_messa['messa_text'])
+                pos_future_conv_context_messas_str = analyze_messages(pos_future_conv_context_messas)
+
+                input_sentence = 'user past history messages include: '+past_user_history_messa_str+' user future history messages include: '+future_user_history_messa_str+' conversation past context messages include: '+pos_past_conv_context_messas_str+'  conversation future context messages include: '+pos_future_conv_context_messas_str
+                input_user_conv_interact_pair = {'text':input_sentence, 'label':1, 'reward_score':1, 'time':1,'user_id':uid, 'conversation':each_conv['conv_id'], 'category':'future_training_with_past_future_user_conv_messas','user_past_history_num': num_past_user_history_messas, 'user_future_history_num': num_future_user_history_messas, 'pos_conv_past_messa_num':num_pos_past_conv_messas, 'pos_conv_future_messa_num':num_pos_future_conv_messas}
+                input_past_future_train_set.append(input_user_conv_interact_pair)
+        
+        negative_conv = random.sample(list(set(list(future_train_conv_messages.keys()))-set(pos_conv)), 10*len(pos_conv))
+        for conv_id in negative_conv:
+            neg_past_conv_context_messas = []
+            neg_past_conv_context_messas_str = ''
+            num_neg_past_conv_messas = 0
+            if each_conv['conv_id'] in past_train_conv_messages and past_train_conv_messages[conv_id]['messa_num'] >=3:
+                print('negative tags: for this conversation in future training dict, there exist messages in past training dict')
+                num_neg_past_conv_messas = past_train_conv_messages[conv_id]['messa_num']
+                for each_messa in past_train_conv_messages[conv_id]['messas']:
+                    neg_past_conv_context_messas.append(each_messa['messa_text'])
+                neg_past_conv_context_messas_str = analyze_messages(neg_past_conv_context_messas)
+ 
+            num_neg_future_conv_messas = future_train_conv_messages[conv_id]['messa_num']
+            neg_future_conv_context_messas = []
+            for each_messa in future_train_conv_messages[conv_id]['messas']:
+                neg_future_conv_context_messas.append(each_messa['messa_text'])
+            neg_future_conv_context_messas_str = analyze_messages(neg_future_conv_context_messas)
+            input_sentence = 'user past history messages include: '+past_user_history_messa_str+' user future history messages include: '+future_user_history_messa_str+' conversation past context messages include: '+neg_past_conv_context_messas_str+'  conversation future context messages include: '+neg_future_conv_context_messas_str
+            input_user_conv_interact_pair = {'text':input_sentence, 'label':0, 'reward_score':1, 'time':1,'user_id':uid, 'conversation':each_conv['conv_id'], 'category':'future_training_with_past_future_user_conv_messas','user_past_history_num': num_past_user_history_messas, 'user_future_history_num': num_future_user_history_messas, 'neg_conv_past_messa_num':num_neg_past_conv_messas, 'neg_conv_future_messa_num':num_neg_future_conv_messas}
+            input_past_future_train_set.append(input_user_conv_interact_pair)
     
+    tempf = open('conv_data/input_future_training_data.json', 'w')
+    tempf.close()  
+    with open('conv_data/input_future_training_data.json', 'a') as out:
+        for l in input_past_future_train_set:
+            json_str=json.dumps(l)
+            out.write(json_str+"\n")   
+    
+    # formulate the future test data
+    # later cold-start users that apprear at the future test data only could be tested at the inference stage. For training, we adopt data of users existing through the timeline
+    input_future_test_set = []
+    for uid in unify_user_conv_interact_list.keys():
+        past_user_history_messa = []
+        for each_conv in past_train_user_messages[uid]['convs']:
+            past_user_history_messa.append(each_conv['messa_text'])
+        num_past_user_history_messas = past_train_user_messages[uid]['messa_num']
+        past_user_history_messa_str = analyze_messages(past_user_history_messa)
+        future_user_history_messa = []
+        for each_conv in future_train_user_messages[uid]['convs']:
+            future_user_history_messa.append(each_conv['messa_text'])
+        num_future_user_history_messas = future_train_user_messages[uid]['messa_num']
+        future_user_history_messa_str = analyze_messages(future_user_history_messa)
+
+        pos_conv = []
+        for each_conv in future_train_user_messages[uid]['convs']:
+            if each_conv['conv_id'] in pos_conv:
+                continue
+            # for this conversation in future training dict, there exist messages in past training dict
+            else:
+                pos_past_conv_context_messas_str = ''
+                num_pos_past_conv_messas = 0
+                if each_conv['conv_id'] in past_train_conv_messages and past_train_conv_messages[each_conv['conv_id']]['messa_num'] >=3:
+                    print('positive tags: for this conversation in future training dict, there exist '+str(past_train_conv_messages[each_conv['conv_id']]['messa_num'])+' messages in past training dict')
+                    print('conv_id is '+each_conv['conv_id'])
+                    num_pos_past_conv_messas = past_train_conv_messages[each_conv['conv_id']]['messa_num']
+                    pos_past_conv_context_messas = []
+                    for each_messa in past_train_conv_messages[each_conv['conv_id']]['messas']:
+                        pos_past_conv_context_messas.append(each_messa['messa_text'])
+                    pos_past_conv_context_messas_str = analyze_messages(pos_past_conv_context_messas)
+
+                # for this conversation in future training dict, there is no messages in past training dict
+                num_pos_future_conv_messas = future_train_conv_messages[each_conv['conv_id']]['messa_num']
+                pos_conv.append(each_conv['conv_id'])
+                pos_future_conv_context_messas = []
+                for each_messa in future_train_conv_messages[each_conv['conv_id']]['messas']:
+                    pos_future_conv_context_messas.append(each_messa['messa_text'])
+                pos_future_conv_context_messas_str = analyze_messages(pos_future_conv_context_messas)
+
+                input_sentence = 'user past history messages include: '+past_user_history_messa_str+' user future history messages include: '+future_user_history_messa_str+' conversation past context messages include: '+pos_past_conv_context_messas_str+'  conversation future context messages include: '+pos_future_conv_context_messas_str
+                input_user_conv_interact_pair = {'text':input_sentence, 'label':1, 'reward_score':1, 'time':1,'user_id':uid, 'conversation':each_conv['conv_id'], 'category':'future_training_with_past_future_user_conv_messas','user_past_history_num': num_past_user_history_messas, 'user_future_history_num': num_future_user_history_messas, 'pos_conv_past_messa_num':num_pos_past_conv_messas, 'pos_conv_future_messa_num':num_pos_future_conv_messas}
+                input_future_test_set.append(input_user_conv_interact_pair)
+        
+        negative_conv = random.sample(list(set(list(future_train_conv_messages.keys()))-set(pos_conv)), 10*len(pos_conv))
+        for conv_id in negative_conv:
+            neg_past_conv_context_messas = []
+            neg_past_conv_context_messas_str = ''
+            num_neg_past_conv_messas = 0
+            if each_conv['conv_id'] in past_train_conv_messages and past_train_conv_messages[conv_id]['messa_num'] >=3:
+                print('negative tags: for this conversation in future training dict, there exist messages in past training dict')
+                num_neg_past_conv_messas = past_train_conv_messages[conv_id]['messa_num']
+                for each_messa in past_train_conv_messages[conv_id]['messas']:
+                    neg_past_conv_context_messas.append(each_messa['messa_text'])
+                neg_past_conv_context_messas_str = analyze_messages(neg_past_conv_context_messas)
+ 
+            num_neg_future_conv_messas = future_train_conv_messages[conv_id]['messa_num']
+            neg_future_conv_context_messas = []
+            for each_messa in future_train_conv_messages[conv_id]['messas']:
+                neg_future_conv_context_messas.append(each_messa['messa_text'])
+            neg_future_conv_context_messas_str = analyze_messages(neg_future_conv_context_messas)
+            input_sentence = 'user past history messages include: '+past_user_history_messa_str+' user future history messages include: '+future_user_history_messa_str+' conversation past context messages include: '+neg_past_conv_context_messas_str+'  conversation future context messages include: '+neg_future_conv_context_messas_str
+            input_user_conv_interact_pair = {'text':input_sentence, 'label':0, 'reward_score':1, 'time':1,'user_id':uid, 'conversation':each_conv['conv_id'], 'category':'future_training_with_past_future_user_conv_messas','user_past_history_num': num_past_user_history_messas, 'user_future_history_num': num_future_user_history_messas, 'neg_conv_past_messa_num':num_neg_past_conv_messas, 'neg_conv_future_messa_num':num_neg_future_conv_messas}
+            input_future_test_set.append(input_user_conv_interact_pair)
+    
+    tempf = open('conv_data/input_future_test_data.json', 'w')
+    tempf.close()  
+    with open('conv_data/input_future_test_data.json', 'a') as out:
+        for l in input_future_test_set:
+            json_str=json.dumps(l)
+            out.write(json_str+"\n")   
+    
+
+
 
 if __name__ =='__main__':
     
