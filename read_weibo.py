@@ -1,8 +1,10 @@
 import csv
 import ast
+import json
 import re
 from tqdm import tqdm
 import jieba
+import random
 import csv
 csv.field_size_limit(100000000)  # Set a larger limit (e.g., 100 MB)
 
@@ -17,8 +19,7 @@ def count_shared_elements(list1, list2, list3, list4):
     intersection = set1 & set2 & set3 & set4
     
     # Return the number of shared elements
-
-    print( len(intersection))
+    print(len(intersection))
 
 def extract_chinese_text(string):
     # Define a regular expression pattern to match Chinese characters
@@ -29,7 +30,7 @@ def extract_chinese_text(string):
     
     # Join the matches into a single string
     chinese_text = ''.join(chinese_matches)
-    if len(jieba.lcut(chinese_text)) < 10:
+    if len(jieba.lcut(chinese_text)) < 5:
         return False
     else:
         return chinese_text
@@ -55,19 +56,6 @@ def process_user_history_weibo(uid, weibostr):
             new_weibo_list.append({'timestamp':weibo_time, 'user':uid, 'text':chi_weibo_str, 'tag_list':hashtag_list})
     return new_weibo_list
 
-def read_csv_file(file_path):
-    data = []
-    with open(file_path, 'r', encoding='utf-8') as file:
-        csv_reader = csv.reader(file)
-        # Skip the header row
-        next(csv_reader)
-        for row in tqdm(csv_reader):
-            # Assuming the CSV file has three columns: id, weibo, paper_time
-            uid, user_all_weibos = row[1], row[2]
-            this_user_weibo_list = process_user_history_weibo(uid, user_all_weibos)
-            data.extend(this_user_weibo_list)
-    return data
-
 def analyze_users(file_path):
     ulist = []
     with open(file_path, 'r', encoding='utf-8') as file:
@@ -80,10 +68,26 @@ def analyze_users(file_path):
             ulist.append(uid)
     return ulist
 
+def read_csv_file(file_path):
+    data = []
+    with open(file_path, 'r', encoding='utf-8') as file:
+        csv_reader = csv.reader(file)
+        # Skip the header row
+        next(csv_reader)
+        idx = 0
+        for row in tqdm(csv_reader):
+            # Assuming the CSV file has three columns: id, weibo, paper_time
+            if idx < 100000000:
+                uid, user_all_weibos = row[1], row[2]
+                this_user_weibo_list = process_user_history_weibo(uid, user_all_weibos)
+                data.extend(this_user_weibo_list)
+                idx+=1
+    return data
+
 def extract_tag_dict(time_list):
     tag_dict = {}
     for each_weibo in tqdm(time_list):
-        timestamp, uid, weibo_text, u_tag_list = each_weibo[0], each_weibo[1], each_weibo[2], each_weibo[3]
+        timestamp, uid, weibo_text, u_tag_list = each_weibo['timestamp'], each_weibo['user'], each_weibo['text'], each_weibo['tag_list']
         for tag in u_tag_list:
             if tag not in tag_dict:
                 tag_dict[tag]={'context_num':0, 'users':{}}
@@ -91,17 +95,18 @@ def extract_tag_dict(time_list):
                 tag_dict[tag]['users'][uid]=[]
             tag_dict[tag]['users'][uid].append({'text':weibo_text, 'timestamp':timestamp})
             tag_dict[tag]['context_num']+=1
-    for tag in tag_dict:
-        if len(tag_dict[tag]['users'].keys())>100:
+    print('before filtering, totally '+str(len(tag_dict.keys()))+' tags in this subset')
+    for tag in list(tag_dict.keys()):
+        if len(tag_dict[tag]['users'].keys())>100 or len(tag_dict[tag]['users'].keys())<3:
             del tag_dict[tag]
-            print('delete a tag used by more than 100 users')
-    print('totally '+str(len(tag_dict.keys()))+' tags in this subset')
+            # print('delete a tag used by more than 100 users or less than 3 users')
+    print('after filtering, totally '+str(len(tag_dict.keys()))+' tags in this subset')
     return tag_dict
 
 def extract_user_dict(time_list):
     user_dict = {}
     for each_weibo in tqdm(time_list):
-        timestamp, uid, weibo_text, u_tag_list = each_weibo[0], each_weibo[1], each_weibo[2], each_weibo[3]
+        timestamp, uid, weibo_text, u_tag_list = each_weibo['timestamp'], each_weibo['user'], each_weibo['text'], each_weibo['tag_list']
         if uid not in user_dict:
             user_dict[uid] = {'weibo_num':0, 'tags':{}}
         for tag in u_tag_list:
@@ -109,17 +114,221 @@ def extract_user_dict(time_list):
                 user_dict[uid]['tags'][tag]=[]
             user_dict[uid]['tags'][tag].append({'text':weibo_text, 'timestamp':timestamp})
             user_dict[uid]['weibo_num']+=1
-    for user in user_dict:
-        if len(user_dict[user]['weibo_num'])>100:
+    print('before filtering, totally '+str(len(user_dict.keys()))+' users in this subset')
+    for user in list(user_dict.keys()):
+        if (user_dict[user]['weibo_num'])>100 or (user_dict[user]['weibo_num'])<3:
             del user_dict[user]
-            print('delete a user posting more than 100 weibos')
-    print('totally '+str(len(user_dict.keys()))+' users in this subset')
+            # print('delete a user posting more than 100 weibos or less than 3 weibos')
+    print('after filtering, totally '+str(len(user_dict.keys()))+' users in this subset')
     return user_dict
 
-train_file_path = './weibo_data/train.csv'  # Replace 'sample.csv' with your actual file path
-test1_file_path = './weibo_data/test1.csv'
-test2_file_path = './weibo_data/test2.csv'
-val_file_path = './weibo_data/dev.csv'
+def keep_shared_tagoruser_subset(shared_hastags, past_train_tag_context, future_train_tag_context, future_test_tag_context):
+    new_past_train, new_future_train, new_future_test = {}, {}, {}
+    for tag in shared_hastags:
+        new_past_train[tag], new_future_train[tag], new_future_test[tag] = past_train_tag_context[tag], future_train_tag_context[tag], future_test_tag_context[tag]
+    return new_past_train, new_future_train, new_future_test
+
+def list2string(weibo_list):
+    weibo_list = list(set(weibo_list))
+    weibo_str = ''
+    for weibo in weibo_list:
+        weibo_str+=(weibo+'\n')
+    return len(weibo_list), weibo_str
+
+def formulate_past_train_set(shared_tags, shared_users, past_train_tag_context, past_train_user_weibo):
+    input_past_train_set = []
+    for uid in shared_users:
+        past_user_weibo = []
+        for u_tag in past_train_user_weibo[uid]['tags']:
+            weibo_this_tag = past_train_user_weibo[uid]['tags'][u_tag]
+            past_user_weibo.append(weibo_this_tag)
+        num_past_user_weibo, past_user_weibo_str = list2string(past_user_weibo)
+
+        pos_tags = []
+        for pos_tag in past_train_user_weibo[uid]['tags']:
+            if pos_tag in shared_tags:
+                this_tag_context = []
+                for this_pos_tag_user in past_train_tag_context[pos_tag]['users']:
+                    this_pos_tag_user_weibo = past_train_tag_context[pos_tag]['users'][this_pos_tag_user]['text']
+                    this_tag_context.append(this_pos_tag_user_weibo)
+                num_this_pos_tag_context, this_tag_context_str = list2string(this_tag_context)
+                if num_this_pos_tag_context <2:
+                    continue
+                else:
+                    pos_tags.append(pos_tag)
+                    input_sentence = 'user history tweets include: '+past_user_weibo_str+'hashtag context tweets include: '+this_tag_context_str
+                    input_user_hashtag_interact_pair = {'text':input_sentence, 'label':1, 'reward_score':0, 'time':0,'user_id':uid, 'hashtag':pos_tag, 'category':'past_training', 'user_past_history_num': num_past_user_weibo, 'user_future_history_num':0, 'pos_tag_past_tweets_num':num_this_pos_tag_context, 'pos_tag_future_tweets_num':0}
+                    input_past_train_set.append(input_user_hashtag_interact_pair)
+        
+        # here first select a full set of negative tags pool. to choose from the shared_hashtags is a bit small set, to choose from the whole hashtags is larger
+        full_tag_set = list(set(past_train_tag_context.keys())-set(pos_tags))
+        neg_tags = random.sample(full_tag_set, len(pos_tags)*10)
+        for neg_tag in neg_tags:
+            this_neg_tag_context = []
+            for this_neg_tag_user in past_train_tag_context[neg_tag]['users']:
+                this_neg_tag_weibo = past_train_tag_context[neg_tag]['users'][this_neg_tag_user]['text']
+                this_neg_tag_context.append(this_neg_tag_weibo)
+            num_this_neg_tag_context, this_neg_tag_context_str = list2string(this_neg_tag_context)
+            if num_this_neg_tag_context<2:
+                continue
+            else:
+                input_sentence = 'user history tweets include: '+past_user_weibo_str+'hashtag context tweets include: '+this_neg_tag_context_str
+                input_user_hashtag_interact_pair = {'text':input_sentence, 'label':0, 'reward_score':0, 'time':0,'user_id':uid, 'hashtag':neg_tag, 'category':'past_training', 'user_past_history_num': num_past_user_weibo, 'user_future_history_num':0, 'neg_tag_past_tweets_num':num_this_neg_tag_context, 'neg_tag_future_tweets_num':0}
+                input_past_train_set.append(input_user_hashtag_interact_pair)
+    tempf = open('./weibo_data/input_past_training_data.json', 'w')
+    tempf.close()  
+    with open('./weibo_data/input_past_training_data.json', 'a') as out:
+        for l in input_past_train_set:
+            json_str=json.dumps(l)
+            out.write(json_str+"\n")
+
+def formulate_future_train_set(shared_tags, shared_users, past_train_tag_context, past_train_user_weibo, future_train_tag_context, future_train_user_weibo, future_test_tag_context, future_test_user_weibo):
+    input_future_train_set = []
+    for uid in shared_users:
+        past_user_weibo = []
+        for u_tag in past_train_user_weibo[uid]['tags']:
+            weibo_this_tag = past_train_user_weibo[uid]['tags'][u_tag]
+            past_user_weibo.append(weibo_this_tag)
+        num_past_user_weibo, past_user_weibo_str = list2string(past_user_weibo)
+        future_user_weibo = []
+        for u_tag in future_train_user_weibo[uid]['tags']:
+            weibo_this_tag = future_train_user_weibo[uid]['tags'][u_tag]
+            future_user_weibo.append(weibo_this_tag)
+        num_future_user_weibo, future_user_weibo_str = list2string(future_user_weibo)
+
+        pos_tags = []
+        for pos_tag in future_train_user_weibo[uid]['tags']:
+            if pos_tag in shared_tags:
+                this_tag_past_context = []
+                for this_pos_tag_user in past_train_tag_context[pos_tag]['users']:
+                    this_pos_tag_user_weibo = past_train_tag_context[pos_tag]['users'][this_pos_tag_user]['text']
+                    this_tag_past_context.append(this_pos_tag_user_weibo)
+                num_this_pos_tag_past_context, this_tag_past_context_str = list2string(this_tag_past_context)
+                if num_this_pos_tag_past_context <2:
+                    continue
+                this_tag_future_context = []
+                for this_pos_tag_user in future_train_tag_context[pos_tag]['users']:
+                    this_pos_tag_user_weibo = future_train_tag_context[pos_tag]['users'][this_pos_tag_user]['text']
+                    this_tag_future_context.append(this_pos_tag_user_weibo)
+                num_this_pos_tag_future_context, this_tag_future_context_str = list2string(this_tag_future_context)
+                if num_this_pos_tag_future_context <2:
+                    continue
+                pos_tags.append(pos_tag)
+                input_sentence = 'user past history tweets include: '+past_user_weibo_str+' user future history tweets include: '+future_user_weibo_str+' hashtag past context tweets include: '+this_tag_past_context_str+'  hashtag future context tweets include: '+this_tag_future_context_str
+                input_user_hashtag_interact_pair = {'text':input_sentence, 'label':1, 'reward_score':1, 'time':1,'user_id':uid, 'hashtag':pos_tag, 'category':'future_training_with_past_future_user_hashtag_tweets','user_past_history_num': num_past_user_weibo, 'user_future_history_num': num_future_user_weibo, 'pos_tag_past_tweets_num':num_this_pos_tag_past_context, 'pos_tag_future_tweets_num':num_this_pos_tag_future_context}
+                input_future_train_set.append(input_user_hashtag_interact_pair)
+
+        full_tag_set = list(set(future_train_tag_context.keys())-set(pos_tags))
+        neg_tags = random.sample(full_tag_set, len(pos_tags)*10)
+        for neg_tag in neg_tags:
+            this_neg_tag_past_context = []
+            for this_neg_tag_user in past_train_tag_context[neg_tag]['users']:
+                this_neg_tag_weibo = past_train_tag_context[neg_tag]['users'][this_neg_tag_user]['text']
+                this_neg_tag_past_context.append(this_neg_tag_weibo)
+            num_this_neg_tag_past_context, this_neg_tag_past_context_str = list2string(this_neg_tag_past_context)
+            if num_this_neg_tag_past_context<2:
+                continue
+            this_neg_tag_future_context = []
+            for this_neg_tag_user in future_train_tag_context[neg_tag]['users']:
+                this_neg_tag_weibo = future_train_tag_context[neg_tag]['users'][this_neg_tag_user]['text']
+                this_neg_tag_future_context.append(this_neg_tag_weibo)
+            num_this_neg_tag_future_context, this_neg_tag_future_context_str = list2string(this_neg_tag_future_context)
+            if num_this_neg_tag_future_context<2:
+                continue
+            input_sentence = 'user past history tweets include: '+past_user_weibo_str+' user future history tweets include: '+future_user_weibo_str+' hashtag past context tweets include: '+this_neg_tag_past_context_str+'  hashtag future context tweets include: '+this_neg_tag_future_context_str
+            input_user_hashtag_interact_pair = {'text':input_sentence, 'label':0, 'reward_score':1, 'time':1,'user_id':uid, 'hashtag':neg_tag, 'category':'future_training_with_past_future_user_hashtag_tweets','user_past_history_num': num_past_user_weibo, 'user_future_history_num': num_future_user_weibo, 'neg_tag_past_tweets_num':num_this_neg_tag_past_context, 'neg_tag_future_tweets_num':num_this_neg_tag_future_context}
+            input_future_train_set.append(input_user_hashtag_interact_pair)
+    tempf = open('./weibo_data/input_future_training_data.json', 'w')
+    tempf.close()  
+    with open('./weibo_data/input_future_training_data.json', 'a') as out:
+        for l in input_future_train_set:
+            json_str=json.dumps(l)
+            out.write(json_str+"\n")   
+
+def formulate_future_test_set(shared_tags, shared_users, past_train_tag_context, past_train_user_weibo, future_train_tag_context, future_train_user_weibo, future_test_tag_context, future_test_user_weibo):
+    input_future_test_set = []
+    for uid in shared_users:
+        user_weibo = []
+        for u_tag in past_train_user_weibo[uid]['tags']:
+            weibo_this_tag = past_train_user_weibo[uid]['tags'][u_tag]
+            user_weibo.append(weibo_this_tag)
+        for u_tag in future_train_user_weibo[uid]['tags']:
+            weibo_this_tag = future_train_user_weibo[uid]['tags'][u_tag]
+            user_weibo.append(weibo_this_tag)
+        num_user_weibo, user_weibo_str = list2string(user_weibo)
+
+        pos_tags = []
+        for pos_tag in future_train_user_weibo[uid]['tags']:
+            num_new_tag = 0
+            num_shared_tag = 0
+            # if pos_tag in shared_hastags:
+            if 1: # during inference, test both cold-start hashtags and shared_hashtags
+                this_tag_context = []
+                if pos_tag in past_train_tag_context:
+                    for this_pos_tag_user in past_train_tag_context[pos_tag]['users']:
+                        this_pos_tag_user_weibo = past_train_tag_context[pos_tag]['users'][this_pos_tag_user]['text']
+                        this_tag_context.append(this_pos_tag_user_weibo)
+                if pos_tag in future_train_tag_context:
+                    for this_pos_tag_user in future_train_tag_context[pos_tag]['users']:
+                        this_pos_tag_user_weibo = future_train_tag_context[pos_tag]['users'][this_pos_tag_user]['text']
+                        this_tag_context.append(this_pos_tag_user_weibo)
+                num_this_pos_tag_context, this_tag_context_str = list2string(this_tag_context)
+            
+                this_tag_future_test_context = []
+                for this_pos_tag_user in future_test_tag_context[pos_tag]['users']:
+                    if this_pos_tag_user != uid:
+                        this_pos_tag_user_weibo = past_train_tag_context[pos_tag]['users'][this_pos_tag_user]['text']
+                        this_tag_future_test_context.append(this_pos_tag_user_weibo)
+                num_this_tag_future_test_context, this_tag_future_test_context_str = list2string(this_tag_future_test_context)
+                if num_this_tag_future_test_context <2:
+                    continue
+                pos_tags.append(pos_tag)
+                if pos_tag in shared_tags:
+                    num_shared_tag+=1
+                else:
+                    num_new_tag+=1
+                input_sentence = 'user history tweets include: '+user_weibo_str+' hashtag past context tweets include: '+this_tag_context_str+' hashtag future context tweets include: '+this_tag_future_test_context_str
+                input_user_hashtag_interact_pair = {'text':input_sentence, 'label':1, 'user_id':uid, 'hashtag':pos_tag,'pos_tag_past_tweets_num':num_this_pos_tag_context, 'pos_tag_future_tweets_num':num_this_tag_future_test_context}
+                input_future_test_set.append(input_user_hashtag_interact_pair)
+
+        full_tag_set = list(set(future_test_tag_context.keys())-set(pos_tags))
+        neg_tags = random.sample(full_tag_set, len(pos_tags)*10)
+        for neg_tag in neg_tags:
+            this_neg_tag_past_context = []
+            if neg_tag in past_train_tag_context:
+                    for this_neg_tag_user in past_train_tag_context[neg_tag]['users']:
+                        this_neg_tag_user_weibo = past_train_tag_context[neg_tag]['users'][this_neg_tag_user]['text']
+                        this_neg_tag_past_context.append(this_neg_tag_user_weibo)
+            if neg_tag in future_train_tag_context:
+                for this_neg_tag_user in future_train_tag_context[neg_tag]['users']:
+                    this_neg_tag_user_weibo = future_train_tag_context[neg_tag]['users'][this_neg_tag_user]['text']
+                    this_neg_tag_past_context.append(this_neg_tag_user_weibo)
+            num_this_neg_tag_past_context, this_neg_tag_past_context_str = list2string(this_neg_tag_past_context)
+
+            this_neg_tag_future_test_context = []
+            for this_neg_tag_user in future_test_tag_context[neg_tag]['users']:
+                if this_neg_tag_user != uid:
+                    this_neg_tag_user_weibo = past_train_tag_context[neg_tag]['users'][this_neg_tag_user]['text']
+                    this_neg_tag_future_test_context.append(this_neg_tag_user_weibo)
+            num_this_neg_tag_future_test_context, this_neg_tag_future_test_context_str = list2string(this_neg_tag_future_test_context)
+            if num_this_neg_tag_future_test_context <2:
+                continue
+            input_sentence = 'user history tweets include: '+user_weibo_str+' hashtag past context tweets include: '+this_neg_tag_past_context_str+' hashtag future context tweets include: '+this_neg_tag_future_test_context_str
+            input_user_hashtag_interact_pair = {'text':input_sentence, 'label':0, 'user_id':uid, 'hashtag':neg_tag,'neg_tag_past_tweets_num':num_this_neg_tag_past_context, 'neg_tag_future_tweets_num':num_this_neg_tag_future_test_context}
+            input_future_test_set.append(input_user_hashtag_interact_pair)
+    print(str(num_new_tag)+' new hashtags in future test data only')
+    print(str(num_shared_tag)+' shared hashtags in all three subsets')
+    tempf = open('./weibo_data/input_past_future_test_data.json', 'w')
+    tempf.close()
+    with open('./weibo_data/input_past_future_test_data.json', 'a') as out:
+        for l in input_future_test_set:
+            json_str=json.dumps(l)
+            out.write(json_str+"\n")  
+
+train_file_path = './raw_weibo_data/train.csv'  # Replace 'sample.csv' with your actual file path
+test1_file_path = './raw_weibo_data/test1.csv'
+test2_file_path = './raw_weibo_data/test2.csv'
+val_file_path = './raw_weibo_data/dev.csv'
 
 # train_ulist = analyze_users(train_file_path)
 # test1_ulist = analyze_users(test1_file_path)
@@ -151,6 +360,8 @@ future_test_tag_context = extract_tag_dict(future_test)
 
 shared_hastags = list(set(past_train_tag_context.keys())&set(future_train_tag_context.keys())&set(future_test_tag_context.keys()))
 print('there are totally '+str(len(shared_hastags))+' hashtags shared by three subsets')
+past_train_tag_context, future_train_tag_context, future_test_tag_context=keep_shared_tagoruser_subset(shared_hastags, past_train_tag_context, future_train_tag_context, future_test_tag_context)
+
 
 past_train_user_weibo = extract_user_dict(past_train)
 future_train_user_weibo = extract_user_dict(future_train)
@@ -158,4 +369,9 @@ future_test_user_weibo = extract_user_dict(future_test)
 
 shared_users = list(set(past_train_user_weibo.keys())&set(future_train_user_weibo.keys())&set(future_test_user_weibo.keys()))
 print('there are totally '+str(len(shared_users))+' users shared by three subsets')
+past_train_user_weibo, future_train_user_weibo, future_test_user_weibo = keep_shared_tagoruser_subset(shared_users, past_train_user_weibo,future_train_user_weibo,future_test_user_weibo)
+
+formulate_past_train_set(shared_hastags, shared_users, past_train_tag_context, past_train_user_weibo)
+formulate_future_train_set(shared_hastags, shared_users, past_train_tag_context, past_train_user_weibo, future_train_tag_context, future_train_user_weibo, future_test_tag_context, future_test_user_weibo)
+formulate_future_test_set(shared_hastags,shared_users, past_train_tag_context, past_train_user_weibo, future_train_tag_context, future_train_user_weibo, future_test_tag_context, future_test_user_weibo)
 
