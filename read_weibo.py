@@ -130,6 +130,8 @@ def keep_shared_tagoruser_subset(shared_hastags, past_train_tag_context, future_
 
 def list2string(weibo_list):
     weibo_list = list(set(weibo_list))
+    if len(weibo_list)>30:
+        weibo_list=random.sample(weibo_list, 30)
     weibo_str = ''
     for weibo in weibo_list:
         weibo_str+=(weibo+'\n')
@@ -140,8 +142,9 @@ def formulate_past_train_set(shared_tags, shared_users, past_train_tag_context, 
     for uid in shared_users:
         past_user_weibo = []
         for u_tag in past_train_user_weibo[uid]['tags']:
-            weibo_this_tag = past_train_user_weibo[uid]['tags'][u_tag]
-            past_user_weibo.append(weibo_this_tag)
+            weibo_this_tag_list = past_train_user_weibo[uid]['tags'][u_tag]
+            for weibo_this_tag in weibo_this_tag_list:
+                past_user_weibo.append(weibo_this_tag)
         num_past_user_weibo, past_user_weibo_str = list2string(past_user_weibo)
 
         pos_tags = []
@@ -149,8 +152,9 @@ def formulate_past_train_set(shared_tags, shared_users, past_train_tag_context, 
             if pos_tag in shared_tags:
                 this_tag_context = []
                 for this_pos_tag_user in past_train_tag_context[pos_tag]['users']:
-                    this_pos_tag_user_weibo = past_train_tag_context[pos_tag]['users'][this_pos_tag_user]['text']
-                    this_tag_context.append(this_pos_tag_user_weibo)
+                    this_pos_tag_user_weibo_list = past_train_tag_context[pos_tag]['users'][this_pos_tag_user]['text']
+                    for this_pos_tag_user_weibo in this_pos_tag_user_weibo_list:
+                        this_tag_context.append(this_pos_tag_user_weibo)
                 num_this_pos_tag_context, this_tag_context_str = list2string(this_tag_context)
                 if num_this_pos_tag_context <2:
                     continue
@@ -166,8 +170,9 @@ def formulate_past_train_set(shared_tags, shared_users, past_train_tag_context, 
         for neg_tag in neg_tags:
             this_neg_tag_context = []
             for this_neg_tag_user in past_train_tag_context[neg_tag]['users']:
-                this_neg_tag_weibo = past_train_tag_context[neg_tag]['users'][this_neg_tag_user]['text']
-                this_neg_tag_context.append(this_neg_tag_weibo)
+                this_neg_tag_weibo_list = past_train_tag_context[neg_tag]['users'][this_neg_tag_user]['text']
+                for this_neg_tag_weibo in this_neg_tag_weibo_list:
+                    this_neg_tag_context.append(this_neg_tag_weibo)
             num_this_neg_tag_context, this_neg_tag_context_str = list2string(this_neg_tag_context)
             if num_this_neg_tag_context<2:
                 continue
@@ -187,13 +192,15 @@ def formulate_future_train_set(shared_tags, shared_users, past_train_tag_context
     for uid in shared_users:
         past_user_weibo = []
         for u_tag in past_train_user_weibo[uid]['tags']:
-            weibo_this_tag = past_train_user_weibo[uid]['tags'][u_tag]
-            past_user_weibo.append(weibo_this_tag)
+            weibo_this_tag_list = past_train_user_weibo[uid]['tags'][u_tag]
+            for weibo_this_tag in weibo_this_tag_list:
+                past_user_weibo.append(weibo_this_tag)
         num_past_user_weibo, past_user_weibo_str = list2string(past_user_weibo)
         future_user_weibo = []
         for u_tag in future_train_user_weibo[uid]['tags']:
-            weibo_this_tag = future_train_user_weibo[uid]['tags'][u_tag]
-            future_user_weibo.append(weibo_this_tag)
+            weibo_this_tag_list = future_train_user_weibo[uid]['tags'][u_tag]
+            for weibo_this_tag in weibo_this_tag_list:
+                future_user_weibo.append(weibo_this_tag)
         num_future_user_weibo, future_user_weibo_str = list2string(future_user_weibo)
 
         pos_tags = []
@@ -201,15 +208,17 @@ def formulate_future_train_set(shared_tags, shared_users, past_train_tag_context
             if pos_tag in shared_tags:
                 this_tag_past_context = []
                 for this_pos_tag_user in past_train_tag_context[pos_tag]['users']:
-                    this_pos_tag_user_weibo = past_train_tag_context[pos_tag]['users'][this_pos_tag_user]['text']
-                    this_tag_past_context.append(this_pos_tag_user_weibo)
+                    this_pos_tag_user_weibo_list = past_train_tag_context[pos_tag]['users'][this_pos_tag_user]['text']
+                    for this_pos_tag_user_weibo in this_pos_tag_user_weibo_list:
+                        this_tag_past_context.append(this_pos_tag_user_weibo)
                 num_this_pos_tag_past_context, this_tag_past_context_str = list2string(this_tag_past_context)
                 if num_this_pos_tag_past_context <2:
                     continue
                 this_tag_future_context = []
                 for this_pos_tag_user in future_train_tag_context[pos_tag]['users']:
-                    this_pos_tag_user_weibo = future_train_tag_context[pos_tag]['users'][this_pos_tag_user]['text']
-                    this_tag_future_context.append(this_pos_tag_user_weibo)
+                    this_pos_tag_user_weibo_list = future_train_tag_context[pos_tag]['users'][this_pos_tag_user]['text']
+                    for this_pos_tag_user_weibo in this_pos_tag_user_weibo_list:
+                        this_tag_future_context.append(this_pos_tag_user_weibo)
                 num_this_pos_tag_future_context, this_tag_future_context_str = list2string(this_tag_future_context)
                 if num_this_pos_tag_future_context <2:
                     continue
@@ -223,15 +232,17 @@ def formulate_future_train_set(shared_tags, shared_users, past_train_tag_context
         for neg_tag in neg_tags:
             this_neg_tag_past_context = []
             for this_neg_tag_user in past_train_tag_context[neg_tag]['users']:
-                this_neg_tag_weibo = past_train_tag_context[neg_tag]['users'][this_neg_tag_user]['text']
-                this_neg_tag_past_context.append(this_neg_tag_weibo)
+                this_neg_tag_weibo_list = past_train_tag_context[neg_tag]['users'][this_neg_tag_user]['text']
+                for this_neg_tag_weibo in this_neg_tag_weibo_list:
+                    this_neg_tag_past_context.append(this_neg_tag_weibo)
             num_this_neg_tag_past_context, this_neg_tag_past_context_str = list2string(this_neg_tag_past_context)
             if num_this_neg_tag_past_context<2:
                 continue
             this_neg_tag_future_context = []
             for this_neg_tag_user in future_train_tag_context[neg_tag]['users']:
-                this_neg_tag_weibo = future_train_tag_context[neg_tag]['users'][this_neg_tag_user]['text']
-                this_neg_tag_future_context.append(this_neg_tag_weibo)
+                this_neg_tag_weibo_list = future_train_tag_context[neg_tag]['users'][this_neg_tag_user]['text']
+                for this_neg_tag_weibo in this_neg_tag_weibo_list:
+                    this_neg_tag_future_context.append(this_neg_tag_weibo)
             num_this_neg_tag_future_context, this_neg_tag_future_context_str = list2string(this_neg_tag_future_context)
             if num_this_neg_tag_future_context<2:
                 continue
@@ -250,11 +261,13 @@ def formulate_future_test_set(shared_tags, shared_users, past_train_tag_context,
     for uid in shared_users:
         user_weibo = []
         for u_tag in past_train_user_weibo[uid]['tags']:
-            weibo_this_tag = past_train_user_weibo[uid]['tags'][u_tag]
-            user_weibo.append(weibo_this_tag)
+            weibo_this_tag_list = past_train_user_weibo[uid]['tags'][u_tag]
+            for weibo_this_tag in weibo_this_tag_list:
+                user_weibo.append(weibo_this_tag)
         for u_tag in future_train_user_weibo[uid]['tags']:
-            weibo_this_tag = future_train_user_weibo[uid]['tags'][u_tag]
-            user_weibo.append(weibo_this_tag)
+            weibo_this_tag_list = future_train_user_weibo[uid]['tags'][u_tag]
+            for weibo_this_tag in weibo_this_tag_list:
+                user_weibo.append(weibo_this_tag)
         num_user_weibo, user_weibo_str = list2string(user_weibo)
 
         pos_tags = []
@@ -266,19 +279,22 @@ def formulate_future_test_set(shared_tags, shared_users, past_train_tag_context,
                 this_tag_context = []
                 if pos_tag in past_train_tag_context:
                     for this_pos_tag_user in past_train_tag_context[pos_tag]['users']:
-                        this_pos_tag_user_weibo = past_train_tag_context[pos_tag]['users'][this_pos_tag_user]['text']
-                        this_tag_context.append(this_pos_tag_user_weibo)
+                        this_pos_tag_user_weibo_list = past_train_tag_context[pos_tag]['users'][this_pos_tag_user]['text']
+                        for this_pos_tag_user_weibo in this_pos_tag_user_weibo_list:
+                            this_tag_context.append(this_pos_tag_user_weibo)
                 if pos_tag in future_train_tag_context:
                     for this_pos_tag_user in future_train_tag_context[pos_tag]['users']:
-                        this_pos_tag_user_weibo = future_train_tag_context[pos_tag]['users'][this_pos_tag_user]['text']
-                        this_tag_context.append(this_pos_tag_user_weibo)
+                        this_pos_tag_user_weibo_list = future_train_tag_context[pos_tag]['users'][this_pos_tag_user]['text']
+                        for this_pos_tag_user_weibo in this_pos_tag_user_weibo_list:
+                            this_tag_context.append(this_pos_tag_user_weibo)
                 num_this_pos_tag_context, this_tag_context_str = list2string(this_tag_context)
             
                 this_tag_future_test_context = []
                 for this_pos_tag_user in future_test_tag_context[pos_tag]['users']:
                     if this_pos_tag_user != uid:
-                        this_pos_tag_user_weibo = past_train_tag_context[pos_tag]['users'][this_pos_tag_user]['text']
-                        this_tag_future_test_context.append(this_pos_tag_user_weibo)
+                        this_pos_tag_user_weibo_list = past_train_tag_context[pos_tag]['users'][this_pos_tag_user]['text']
+                        for this_pos_tag_user_weibo in this_pos_tag_user_weibo_list:
+                            this_tag_future_test_context.append(this_pos_tag_user_weibo)
                 num_this_tag_future_test_context, this_tag_future_test_context_str = list2string(this_tag_future_test_context)
                 if num_this_tag_future_test_context <2:
                     continue
@@ -297,19 +313,22 @@ def formulate_future_test_set(shared_tags, shared_users, past_train_tag_context,
             this_neg_tag_past_context = []
             if neg_tag in past_train_tag_context:
                     for this_neg_tag_user in past_train_tag_context[neg_tag]['users']:
-                        this_neg_tag_user_weibo = past_train_tag_context[neg_tag]['users'][this_neg_tag_user]['text']
-                        this_neg_tag_past_context.append(this_neg_tag_user_weibo)
+                        this_neg_tag_user_weibo_list = past_train_tag_context[neg_tag]['users'][this_neg_tag_user]['text']
+                        for this_neg_tag_user_weibo in this_neg_tag_user_weibo_list:
+                            this_neg_tag_past_context.append(this_neg_tag_user_weibo)
             if neg_tag in future_train_tag_context:
                 for this_neg_tag_user in future_train_tag_context[neg_tag]['users']:
-                    this_neg_tag_user_weibo = future_train_tag_context[neg_tag]['users'][this_neg_tag_user]['text']
-                    this_neg_tag_past_context.append(this_neg_tag_user_weibo)
+                    this_neg_tag_user_weibo_list = future_train_tag_context[neg_tag]['users'][this_neg_tag_user]['text']
+                    for this_neg_tag_user_weibo in this_neg_tag_user_weibo_list:
+                        this_neg_tag_past_context.append(this_neg_tag_user_weibo)
             num_this_neg_tag_past_context, this_neg_tag_past_context_str = list2string(this_neg_tag_past_context)
 
             this_neg_tag_future_test_context = []
             for this_neg_tag_user in future_test_tag_context[neg_tag]['users']:
                 if this_neg_tag_user != uid:
-                    this_neg_tag_user_weibo = past_train_tag_context[neg_tag]['users'][this_neg_tag_user]['text']
-                    this_neg_tag_future_test_context.append(this_neg_tag_user_weibo)
+                    this_neg_tag_user_weibo_list = past_train_tag_context[neg_tag]['users'][this_neg_tag_user]['text']
+                    for this_neg_tag_user_weibo in this_neg_tag_user_weibo_list:
+                        this_neg_tag_future_test_context.append(this_neg_tag_user_weibo)
             num_this_neg_tag_future_test_context, this_neg_tag_future_test_context_str = list2string(this_neg_tag_future_test_context)
             if num_this_neg_tag_future_test_context <2:
                 continue
